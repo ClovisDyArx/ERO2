@@ -43,7 +43,8 @@ class Utilisateur:
 class Moulinette:
     """
     Initialise une instance de moulinette.
-    :param capacity: Nombre d'utilisateur en simultanée dans la queue.
+    :param capacity: Nombre d'utilisateur en simultanée dans la file.
+    :param process_time: Temps de process d'un utilisateur dans la file.
     """
     def __init__(self, capacity=1, process_time=1):
         self.env = simpy.Environment()
