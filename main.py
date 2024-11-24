@@ -1,5 +1,5 @@
 from moulinette import Moulinette, Utilisateur
-from waterfall.waterfall import WaterfallMoulinetteInfinite, WaterfallMoulinetteFinite
+from waterfall.waterfall import WaterfallMoulinetteInfinite, WaterfallMoulinetteFinite, WaterfallMoulinetteFiniteBackup
 
 
 if __name__ == "__main__":
@@ -32,3 +32,13 @@ if __name__ == "__main__":
     wm_fin.add_user(Utilisateur("Pikachu"))
     
     wm_fin.start_simulation(until=20)
+    
+    print("\n\n=== Waterfall Moulinette (Finite Queues with Backup) ===\n")
+    wm_fin_back = WaterfallMoulinetteFiniteBackup(test_capacity=1, ks=2, kf=2, test_time=1, result_time=1)
+    wm_fin_back.add_user(Utilisateur("Clovis"))
+    wm_fin_back.add_user(Utilisateur("Mael"))
+    wm_fin_back.add_user(Utilisateur("Florian"))
+    wm_fin_back.add_user(Utilisateur("Alexandre"))
+    wm_fin_back.add_user(Utilisateur("Pikachu"))
+    
+    wm_fin_back.start_simulation(until=20)
