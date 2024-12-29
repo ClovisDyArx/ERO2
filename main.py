@@ -1,5 +1,8 @@
+import random
+
 from moulinette import Moulinette, Utilisateur
 from waterfall.waterfall import WaterfallMoulinetteInfinite, WaterfallMoulinetteFinite, WaterfallMoulinetteFiniteBackup
+from channels_dams.channelsdams import ChannelsAndDams
 
 
 def create_user_list(names: list[str]) -> list[Utilisateur]:
@@ -7,11 +10,18 @@ def create_user_list(names: list[str]) -> list[Utilisateur]:
     Crée une liste d'utilisateurs à partir d'une liste de noms.
     :param names: Liste de noms.
     """
-    return [Utilisateur(name) for name in names]
+    users = []
+    for name in names:
+        if random.randint(0, 1) == 0:
+            user = Utilisateur(name, promo="ING")
+        else:
+            user = Utilisateur(name, promo="PREPA")
+        users.append(user)
+    return users
 
 
 def moulinette_loadtest(
-        moulinette: Moulinette | WaterfallMoulinetteInfinite | WaterfallMoulinetteFinite | WaterfallMoulinetteFiniteBackup,
+        moulinette: Moulinette | WaterfallMoulinetteInfinite | WaterfallMoulinetteFinite | WaterfallMoulinetteFiniteBackup | ChannelsAndDams,
         user_list: list[Utilisateur],
         until: int = 20):
     """
@@ -22,6 +32,10 @@ def moulinette_loadtest(
     """
     for user in user_list:
         moulinette.add_user(user)
+
+    if isinstance(moulinette, ChannelsAndDams):  # /!\ ne pas retirer.
+        moulinette.env.process(moulinette.regulate_ing())
+
     moulinette.start_simulation(until=until)
 
 
@@ -43,3 +57,7 @@ if __name__ == "__main__":
     print("\n\n=== Waterfall Moulinette (Finite Queues with Backup) ===\n")
     wm_fin_back = WaterfallMoulinetteFiniteBackup(test_capacity=1, ks=2, kf=2, test_time=1, result_time=1)
     moulinette_loadtest(wm_fin_back, user_list, until=20)
+
+    print("\n\n=== Channels & Dams Moulinette ===\n")
+    cd = ChannelsAndDams(capacity=2, process_time=2, tb=5)
+    moulinette_loadtest(cd, user_list, until=20)

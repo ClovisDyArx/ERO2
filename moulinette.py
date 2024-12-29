@@ -10,7 +10,7 @@ class Utilisateur:
     :param promo: Promotion de l'étudiant
     :param workshop: Atelier auquel l'étudiant participe
     """
-    def __init__(self, name: str = "Anonymous", student_id: int = None, promo: str = "ING1", workshop: str = "C"):
+    def __init__(self, name: str = "Anonymous", student_id: int = None, promo: str = "ING", workshop: str = "C"):
         self.name = name
         self.student_id = student_id
         if student_id is None:
