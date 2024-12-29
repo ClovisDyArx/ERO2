@@ -10,10 +10,10 @@ class Utilisateur:
     :param promo: Promotion de l'étudiant
     :param workshop: Atelier auquel l'étudiant participe
     """
-    def __init__(self, name="Anonymous", student_id=None, promo="ING1", workshop="C"):
+    def __init__(self, name: str = "Anonymous", student_id: int = None, promo: str = "ING1", workshop: str = "C"):
         self.name = name
         self.student_id = student_id
-        if student_id == None:
+        if student_id is None:
             self.student_id = random.randint(1000, 10000)
         self.promo = promo
         self.workshop = workshop
@@ -33,7 +33,7 @@ class Utilisateur:
             "workshop": self.workshop
         }
     
-    def __setitem__(self, name, student_id, promo, workshop):
+    def __setitem__(self, name: str, student_id: int, promo: str, workshop: str):
         self.name = name
         self.student_id = student_id
         self.promo = promo
@@ -46,7 +46,7 @@ class Moulinette:
     :param capacity: Nombre d'utilisateur en simultanée dans la file.
     :param process_time: Temps de process d'un utilisateur dans la file.
     """
-    def __init__(self, capacity=1, process_time=1):
+    def __init__(self, capacity: int = 1, process_time: int = 1):
         self.env = simpy.Environment()
         self.server = simpy.Resource(self.env, capacity=capacity)
         self.process_time = process_time
@@ -56,8 +56,8 @@ class Moulinette:
     Ajoute un nouvel utilisateur dans la moulinette.
     :param user: Utilisateur.
     """
-    def add_user(self, user=None):
-        if user == None:
+    def add_user(self, user: Utilisateur = None):
+        if user is None:
             user = Utilisateur()
         self.users.append(user)
 
@@ -65,7 +65,7 @@ class Moulinette:
     Simule l'exécution d'un test pour un utilisateur.
     :param user: Utilisateur.
     """
-    def run_test(self, user):
+    def run_test(self, user: Utilisateur):
         print(f"{user} enters the queue at {self.env.now}")
         with self.server.request() as request:
             yield request
@@ -77,7 +77,7 @@ class Moulinette:
     Lance une simulation complète sur tous les utilisateurs dans la moulinette.
     :param until: Limite de temps de la simulation.
     """
-    def start_simulation(self, until=20):
+    def start_simulation(self, until: int = 20):
         for user in self.users:
             self.env.process(self.run_test(user))
         self.env.run(until=until)
