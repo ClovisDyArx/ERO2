@@ -1,5 +1,6 @@
 import simpy
 import random
+import matplotlib.pyplot as plt
 
 
 class Utilisateur:
@@ -48,7 +49,7 @@ class Moulinette:
         capacity: int = 1,
         process_time: int = 1,
         tag_limit: int = 3,
-        nb_exos: int = 70,
+        nb_exos: int = 5,
     ):
         self.env = simpy.Environment()
         self.server = simpy.Resource(self.env, capacity=capacity)
@@ -56,6 +57,23 @@ class Moulinette:
         self.process_time = process_time
         self.nb_exos = nb_exos
         self.users = {}  # user -> [timestep, ...] (maxlen tag_limit)
+
+    def get_metrics(self):
+        v = []
+        while True:
+            a = True
+            for value in self.users.values():
+                if value != -1:
+                    a = False
+                    break
+            if a:
+                break
+
+            v.append(self.server.count)
+            yield self.env.timeout(1)
+
+        print(len(v))
+        print(v)
 
     """
     Ajoute un nouvel utilisateur dans la moulinette.
@@ -91,4 +109,6 @@ class Moulinette:
     def start_simulation(self, until: int = 20):
         for user in self.users.keys():
             self.env.process(self.run_test(user))
+
+        self.env.process(self.get_metrics())
         self.env.run(until=until)

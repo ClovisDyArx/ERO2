@@ -1,11 +1,9 @@
 import random
 
 from moulinette import Moulinette, Utilisateur
-from waterfall.waterfall import (
-    WaterfallMoulinetteInfinite,
-    WaterfallMoulinetteFinite,
-    WaterfallMoulinetteFiniteBackup,
-)
+from waterfall.infinite import WaterfallMoulinetteInfinite
+from waterfall.finite import WaterfallMoulinetteFinite
+from waterfall.backup import WaterfallMoulinetteFiniteBackup
 from channels_dams.channelsdams import ChannelsAndDams
 
 
