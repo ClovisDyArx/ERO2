@@ -1,7 +1,11 @@
 import random
 
 from moulinette import Moulinette, Utilisateur
-from waterfall.waterfall import WaterfallMoulinetteInfinite, WaterfallMoulinetteFinite, WaterfallMoulinetteFiniteBackup
+from waterfall.waterfall import (
+    WaterfallMoulinetteInfinite,
+    WaterfallMoulinetteFinite,
+    WaterfallMoulinetteFiniteBackup,
+)
 from channels_dams.channelsdams import ChannelsAndDams
 
 
@@ -21,9 +25,16 @@ def create_user_list(names: list[str]) -> list[Utilisateur]:
 
 
 def moulinette_loadtest(
-        moulinette: Moulinette | WaterfallMoulinetteInfinite | WaterfallMoulinetteFinite | WaterfallMoulinetteFiniteBackup | ChannelsAndDams,
-        user_list: list[Utilisateur],
-        until: int = 20):
+    moulinette: (
+        Moulinette
+        | WaterfallMoulinetteInfinite
+        | WaterfallMoulinetteFinite
+        | WaterfallMoulinetteFiniteBackup
+        | ChannelsAndDams
+    ),
+    user_list: list[Utilisateur],
+    until: int = 20,
+):
     """
     Charge test la moulinette avec une liste d'utilisateurs.
     :param moulinette: type de moulinette.
@@ -42,22 +53,22 @@ def moulinette_loadtest(
 if __name__ == "__main__":
     user_list = create_user_list(["Clovis", "Mael", "Florian", "Alexandre", "Pikachu"])
 
-    print("=== Moulinette (Baseline) ===\n")
-    moulinette = Moulinette(capacity=2, process_time=2)
-    moulinette_loadtest(moulinette, user_list, until=20)
+    # print("=== Moulinette (Baseline) ===\n")
+    # moulinette = Moulinette(capacity=2, process_time=2)
+    # moulinette_loadtest(moulinette, user_list, until=20)
 
     print("\n\n=== Waterfall Moulinette (Infinite Queues) ===\n")
     wm_inf = WaterfallMoulinetteInfinite(test_capacity=2, test_time=2, result_time=2)
-    moulinette_loadtest(wm_inf, user_list, until=20)
+    moulinette_loadtest(wm_inf, user_list, until=10000000000)
 
-    print("\n\n=== Waterfall Moulinette (Finite Queues) ===\n")
-    wm_fin = WaterfallMoulinetteFinite(test_capacity=1, ks=2, kf=2, test_time=1, result_time=1)
-    moulinette_loadtest(wm_fin, user_list, until=20)
+    # print("\n\n=== Waterfall Moulinette (Finite Queues) ===\n")
+    # wm_fin = WaterfallMoulinetteFinite(test_capacity=1, ks=2, kf=2, test_time=1, result_time=1)
+    # moulinette_loadtest(wm_fin, user_list, until=20)
 
-    print("\n\n=== Waterfall Moulinette (Finite Queues with Backup) ===\n")
-    wm_fin_back = WaterfallMoulinetteFiniteBackup(test_capacity=1, ks=2, kf=2, test_time=1, result_time=1)
-    moulinette_loadtest(wm_fin_back, user_list, until=20)
+    # print("\n\n=== Waterfall Moulinette (Finite Queues with Backup) ===\n")
+    # wm_fin_back = WaterfallMoulinetteFiniteBackup(test_capacity=1, ks=2, kf=2, test_time=1, result_time=1)
+    # moulinette_loadtest(wm_fin_back, user_list, until=20)
 
-    print("\n\n=== Channels & Dams Moulinette ===\n")
-    cd = ChannelsAndDams(capacity=2, process_time=2, tb=5)
-    moulinette_loadtest(cd, user_list, until=20)
+    # print("\n\n=== Channels & Dams Moulinette ===\n")
+    # cd = ChannelsAndDams(capacity=2, process_time=2, tb=5)
+    # moulinette_loadtest(cd, user_list, until=20)

@@ -5,66 +5,75 @@ import random
 class Utilisateur:
     """
     Initialise un utilisateur de notre file d'attente
+
     :param name: Nom de l'étudiant
     :param student_id: Numéro étudiant
     :param promo: Promotion de l'étudiant
     :param workshop: Atelier auquel l'étudiant participe
     """
-    def __init__(self, name: str = "Anonymous", student_id: int = None, promo: str = "ING", workshop: str = "C"):
+
+    def __init__(
+        self,
+        name: str = "Anonymous",
+        student_id: int = None,
+        promo: str = "ING",
+    ):
         self.name = name
         self.student_id = student_id
         if student_id is None:
             self.student_id = random.randint(1000, 10000)
         self.promo = promo
-        self.workshop = workshop
-    
+        self.intelligence = max(min(random.gauss(mu=0.6, sigma=0.075), 0.75), 0.2)
+        self.current_exo = 0
+
     def __str__(self):
         name = self.name
         student_id = self.student_id
         promo = self.promo
-        workshop = self.workshop
-        return f"[{name} ({student_id}) - {promo} | {workshop}]"
-    
-    def __getitem__(self):
-        return {
-            "name": self.name,
-            "student_id": self.student_id,
-            "promo": self.promo,
-            "workshop": self.workshop
-        }
-    
-    def __setitem__(self, name: str, student_id: int, promo: str, workshop: str):
-        self.name = name
-        self.student_id = student_id
-        self.promo = promo
-        self.workshop = workshop
+        current_exo = self.current_exo
+        return f"[{name} ({student_id}) - {promo} | exo {current_exo}]"
 
 
 class Moulinette:
     """
     Initialise une instance de moulinette.
+
     :param capacity: Nombre d'utilisateur en simultanée dans la file.
     :param process_time: Temps de process d'un utilisateur dans la file.
+    :param tag_limit: Nombre de tag limite par heure (60 unités de temps)
     """
-    def __init__(self, capacity: int = 1, process_time: int = 1):
+
+    def __init__(
+        self,
+        capacity: int = 1,
+        process_time: int = 1,
+        tag_limit: int = 3,
+        nb_exos: int = 70,
+    ):
         self.env = simpy.Environment()
         self.server = simpy.Resource(self.env, capacity=capacity)
+        self.tag_limit = tag_limit
         self.process_time = process_time
-        self.users = []
+        self.nb_exos = nb_exos
+        self.users = {}  # user -> [timestep, ...] (maxlen tag_limit)
 
     """
     Ajoute un nouvel utilisateur dans la moulinette.
+
     :param user: Utilisateur.
     """
+
     def add_user(self, user: Utilisateur = None):
         if user is None:
             user = Utilisateur()
-        self.users.append(user)
+        self.users[user] = []
 
     """
     Simule l'exécution d'un test pour un utilisateur.
+
     :param user: Utilisateur.
     """
+
     def run_test(self, user: Utilisateur):
         print(f"{user} enters the queue at {self.env.now}")
         with self.server.request() as request:
@@ -75,9 +84,11 @@ class Moulinette:
 
     """
     Lance une simulation complète sur tous les utilisateurs dans la moulinette.
+
     :param until: Limite de temps de la simulation.
     """
+
     def start_simulation(self, until: int = 20):
-        for user in self.users:
+        for user in self.users.keys():
             self.env.process(self.run_test(user))
         self.env.run(until=until)
