@@ -70,11 +70,11 @@ if __name__ == "__main__":
 
     # print("\n\n=== Waterfall Moulinette (Infinite Queues) ===\n")
     # wm_inf = WaterfallMoulinetteInfinite(K=2, process_time=2, result_time=2)
-    # launch_test(wm_inf, user_list)
+    # launch_test(wm_inf, user_list, until=200)
 
-    # print("\n\n=== Waterfall Moulinette (Finite Queues) ===\n")
-    # wm_fin = WaterfallMoulinetteFinite(K=2, ks=2, kf=2, process_time=1, result_time=1)
-    # launch_test(wm_fin, user_list)
+    print("\n\n=== Waterfall Moulinette (Finite Queues) ===\n")
+    wm_fin = WaterfallMoulinetteFinite(K=2, ks=2, kf=3, process_time=3, result_time=3)
+    launch_test(wm_fin, user_list, until=200)
 
     # print("\n\n=== Waterfall Moulinette (Finite Queues with Backup) ===\n")
     # wm_fin_back = WaterfallMoulinetteFiniteBackup(

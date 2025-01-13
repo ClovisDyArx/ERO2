@@ -45,9 +45,11 @@ class WaterfallMoulinetteFinite(WaterfallMoulinetteInfinite):
                     or self.users_commit_time[user][0] <= self.env.now - 60
                 ):
                     commit = Commit(user, self.env.now, exo, last_chance_commit)
+                    user_id = f"{user.name}_{self.env.now}_{exo}"
 
                     # si plus de place dans la FIFO de test, refus
                     if len(self.test_queue.items) >= self.ks:
+                        self.metrics.record_test_queue_blocked(self.env.now)
                         print(f"{commit} : refused at test queue (FULL).")
                         self.refusals_test += 1
                         yield self.env.timeout(random.randint(4, 10))
@@ -56,6 +58,9 @@ class WaterfallMoulinetteFinite(WaterfallMoulinetteInfinite):
                     # pop le commit le plus vieux
                     if len(self.users_commit_time[user]) == self.tag_limit:
                         self.users_commit_time[user].pop(0)
+
+                    # test queue metrics
+                    self.metrics.record_test_queue_entry(user_id, self.env.now)
 
                     # fifo serveur de test
                     print(f"{commit} : enters the test queue.")
@@ -67,12 +72,18 @@ class WaterfallMoulinetteFinite(WaterfallMoulinetteInfinite):
                         print(f"{commit} : finishes testing.")
                         yield self.test_queue.get(lambda x: x == user)
 
+                    self.metrics.record_test_queue_exit(user_id, self.env.now)
+
                     # si plus de place dans la FIFO d'envoi, refus
                     if len(self.result_queue.items) >= self.kf:
+                        self.metrics.record_result_queue_blocked(self.env.now)
                         print(f"{commit} : refused at result queue (FULL).")
                         self.refusals_result += 1
                         yield self.env.timeout(random.randint(4, 10))
                         continue
+
+                    # métriques queue résultat
+                    self.metrics.record_result_queue_entry(user_id, self.env.now)
 
                     # fifo serveur d'envoi
                     print(f"{commit} : enters the result queue.")
@@ -83,6 +94,8 @@ class WaterfallMoulinetteFinite(WaterfallMoulinetteInfinite):
                         yield self.env.timeout(self.result_time)
                         print(f"{commit} : finishes result processing.")
                         yield self.result_queue.get(lambda x: x == user)
+
+                    self.metrics.record_result_queue_exit(user_id, self.env.now)
 
                     # si le commit est bon
                     if random.random() <= commit.chance_to_pass:

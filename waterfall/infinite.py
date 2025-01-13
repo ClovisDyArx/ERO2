@@ -1,4 +1,3 @@
-import simpy
 import random
 
 from basics import Moulinette, Utilisateur, Commit
@@ -18,7 +17,7 @@ class WaterfallMoulinetteInfinite(Moulinette):
 
     def __init__(self, K: int = 1, process_time: int = 1, result_time: int = 1):
         super().__init__(capacity=K, process_time=process_time)
-        self.result_server = simpy.Resource(self.env, capacity=1)
+        self.process_time = process_time
         self.result_time = result_time
 
     def handle_commit(self, user: Utilisateur):
@@ -27,6 +26,8 @@ class WaterfallMoulinetteInfinite(Moulinette):
 
         :param user: Utilisateur.
         """
+
+        yield self.env.timeout(random.randint(5, 15))
 
         for exo in range(self.nb_exos):
             last_chance_commit = None
@@ -42,14 +43,23 @@ class WaterfallMoulinetteInfinite(Moulinette):
                         self.users_commit_time[user].pop(0)
 
                     commit = Commit(user, self.env.now, exo, last_chance_commit)
+                    user_id = f"{user.name}_{self.env.now}_{exo}"
 
-                    # fifo serveur de test
+                    # test queue metrics
+                    self.metrics.record_test_queue_entry(user_id, self.env.now)
+
+                    # métriques queue test
                     print(f"{commit} : enters the test queue.")
                     with self.server.request() as request:
                         yield request
                         print(f"{commit} : starts testing.")
                         yield self.env.timeout(self.process_time)
                         print(f"{commit} : finishes testing.")
+
+                    self.metrics.record_test_queue_exit(user_id, self.env.now)
+
+                    # métriques queue résultat
+                    self.metrics.record_result_queue_entry(user_id, self.env.now)
 
                     # fifo serveur d'envoi
                     print(f"{commit} : enters the result queue.")
@@ -58,6 +68,8 @@ class WaterfallMoulinetteInfinite(Moulinette):
                         print(f"{commit} : starts result processing.")
                         yield self.env.timeout(self.result_time)
                         print(f"{commit} : finishes result processing.")
+
+                    self.metrics.record_result_queue_exit(user_id, self.env.now)
 
                     # si le commit est bon
                     if random.random() <= commit.chance_to_pass:

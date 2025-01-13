@@ -2,6 +2,8 @@ import simpy
 import random
 import string
 
+from queue_metrics import QueueMetrics
+
 
 class Utilisateur:
     """
@@ -69,11 +71,48 @@ class Moulinette:
     ):
         self.env = simpy.Environment()
         self.server = simpy.Resource(self.env, capacity=capacity)
+        self.result_server = simpy.Resource(self.env, capacity=1)
         self.tag_limit = tag_limit
         self.process_time = process_time
         self.nb_exos = nb_exos
         self.users_commit_time = {}  # user -> [timestep, ...] (maxlen tag_limit)
         self.users_exo = {}
+        self.metrics = QueueMetrics()
+
+    def collect_metrics(self):
+        """
+        Collect metrics at regular intervals
+        """
+        while True:
+            # Test queue metrics
+            test_queue_length = len(self.server.queue)
+            test_server_count = self.server.count
+            test_utilization = (
+                self.server.count / self.server.capacity
+                if self.server.capacity > 0
+                else 0
+            )
+
+            # Result queue metrics
+            result_queue_length = len(self.result_server.queue)
+            result_server_count = self.result_server.count
+            result_utilization = (
+                self.result_server.count / self.result_server.capacity
+                if self.result_server.capacity > 0
+                else 0
+            )
+
+            self.metrics.record_state(
+                self.env.now,
+                test_agents=test_server_count,
+                test_queue_length=test_queue_length,
+                result_agents=result_server_count,
+                result_queue_length=result_queue_length,
+                test_server_utilization=test_utilization,
+                result_server_utilization=result_utilization,
+            )
+
+            yield self.env.timeout(1)
 
     def add_user(self, user: Utilisateur = None):
         """
@@ -92,22 +131,44 @@ class Moulinette:
 
         :param user: Utilisateur.
         """
-        print(f"{user} enters the queue at {self.env.now}")
+        commit = Commit(user, self.env.now, 0)
+
+        print(f"{commit} : enters the queue.")
         with self.server.request() as request:
             yield request
-            print(f"{user} starts testing at {self.env.now}")
+            print(f"{commit} : starts testing.")
             yield self.env.timeout(self.process_time)
-            print(f"{user} finishes testing at {self.env.now}")
+            print(f"{commit} : finishes testing.")
 
     def start_simulation(self, until: int):
         """
-        Lance une simulation complète sur tous les utilisateurs dans la moulinette.
+        Lance une simulation complète sur tous les utilisateurs dans la moulinette et affiche des métriques.
 
         :param until: Limite de temps de la simulation.
         """
+        self.env.process(self.collect_metrics())
+
         for user in self.users_commit_time.keys():
             self.env.process(self.handle_commit(user))
 
-        # need to add process for metrics
-
         self.env.run(until=until)
+
+        metrics = self.metrics.calculate_metrics()
+        print("\nSimulation Metrics:")
+        print("\nTest Queue Metrics:")
+        for metric, value in metrics["test_queue"].items():
+            print(f"- {metric}: {value}")
+
+        print("\nResult Queue Metrics:")
+        for metric, value in metrics["result_queue"].items():
+            print(f"- {metric}: {value}")
+
+        print("\nSojourn Times:")
+        for queue, times in metrics["sojourn_times"].items():
+            print(f"- {queue}:")
+            print(f"  - Average: {times['avg']}")
+            print(f"  - Variance: {times['var']}")
+
+        print(f"\nThroughput: {metrics['throughput']}")
+
+        self.metrics.plot_metrics()
