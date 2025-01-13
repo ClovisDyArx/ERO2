@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     print("\n\n=== Waterfall Moulinette (Infinite Queues) ===\n")
     wm_inf = WaterfallMoulinetteInfinite(test_capacity=2, test_time=2, result_time=2)
-    moulinette_loadtest(wm_inf, user_list, until=5000)
+    moulinette_loadtest(wm_inf, user_list, until=5500)
 
     # print("\n\n=== Waterfall Moulinette (Finite Queues) ===\n")
     # wm_fin = WaterfallMoulinetteFinite(test_capacity=1, ks=2, kf=2, test_time=1, result_time=1)
