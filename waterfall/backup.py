@@ -2,63 +2,146 @@ import simpy
 import random
 
 from .finite import WaterfallMoulinetteFinite
+from basics import Commit
 
 
 class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
     """
-    Simule une moulinette Waterfall avec des tailles finies de files et avec un Backup.
+    Moulinette Waterfall Finie utilisant FilterStore, avec 2 stages de processing :
 
-    :param test_capacity: capacité de la file d'attente de test.
-    :param ks: Tailles des files de test.
-    :param kf: Taille de la file de résultat.
-    :param test_time: Temps de process d'un utilisateur dans la file de test.
+    1. Placer le code dans une file d'attente FIFO finie (taille ks) pour exécuter des tests. (K serveurs)
+    2. Envoyer le résultat dans une file d'attente FIFO finie (taille kf) pour l'envoyer au front. (1 serveur)
+
+    :param K: Nombre de FIFO pour les tests.
+    :param process_time: Temps de process d'un utilisateur dans la file de test.
     :param result_time: Temps de process d'un utilisateur dans la file de résultat.
-    :param backup_capacity: Capacité du backup des résultats.
+    :param ks: Tailles des FIFOs pour exécuter des tests.
+    :param kf: Taille de la FIFO pour l'envoi des résultats.
     """
 
     def __init__(
         self,
-        test_capacity=1,
-        ks=1,
-        kf=1,
-        test_time=1,
-        result_time=1,
-        backup_capacity=10,
+        K: int = 1,
+        process_time: int = 1,
+        result_time: int = 1,
+        ks: int = 1,
+        kf: int = 1,
     ):
-        super().__init__(test_capacity, ks, kf, test_time, result_time)
-        self.backup_storage = simpy.FilterStore(self.env, capacity=backup_capacity)
+        super().__init__(K, ks, kf, process_time, result_time)
+        self.backup_storage = simpy.FilterStore(self.env)
 
-    def run_test(self, user):
-        if len(self.test_queue.items) >= self.ks:
-            print(f"{user} is refused entry to the test queue at {self.env.now}")
-            self.refusals_test += 1
-            return
+    def free_backup(self):
+        while True:
+            if all(value == -1 for value in self.users_commit_time.values()):
+                break
 
-        self.test_queue.put(user)
-        print(f"{user} enters the test queue at {self.env.now}")
-        with self.server.request() as request:
-            yield request
-            self.test_queue.get()
-            print(f"{user} starts testing at {self.env.now}")
-            yield self.env.timeout(self.process_time)
-            print(f"{user} finishes testing at {self.env.now}")
+            # si des commits dans le backup et que la queue d'envoi de résultat est libre
+            if (
+                len(self.backup_storage.items) > 0
+                and len(self.result_queue.items) < self.kf
+            ):
+                commit: Commit = self.backup_storage.get().value
+                if commit.exo != self.users_exo[commit.user]:
+                    yield self.env.timeout(1)
+                    continue
 
-        # On met dans le back up les résultats de la moulinette
-        self.backup_storage.put(user)
-        print(f"{user} backs up the result at {self.env.now}")
+                print(f"{commit} : enters the result queue. [BACKUP]")
+                yield self.result_queue.put(commit.user)
+                with self.result_server.request() as request:
+                    yield request
+                    print(f"{commit} : starts result processing. [BACKUP]")
+                    yield self.env.timeout(self.result_time)
+                    print(f"{commit} : finishes result processing. [BACKUP]")
+                    yield self.result_queue.get(lambda x: x == commit.user)
 
-        if len(self.result_queue.items) >= self.kf:
-            print(f"{user} is refused entry to the result queue at {self.env.now}")
-            self.refusals_result += 1
-            return
+                if random.random() <= commit.chance_to_pass:
+                    print(
+                        f"{commit} : commit passed for exo {self.users_exo[commit.user]} ! [BACKUP]"
+                    )
 
-        # On récupère depuis le back up les résultats
-        if self.backup_storage.items:
-            user_from_backup = (
-                self.backup_storage.get()
-            )  # FIXME: trouver comment pretty print ceci comme un Utilisateur... sûrement un probleme de contexte.
-            print(f"{user_from_backup} starts result processing at {self.env.now}")
-            yield self.env.timeout(self.result_time)
-            print(f"{user_from_backup} finishes result processing at {self.env.now}")
-        else:
-            print(f"No backup available for {user}.")
+                    self.users_exo[commit.user] += 1
+                    self.users_commit_time[commit.user] = []
+
+            else:
+                yield self.env.timeout(1)
+
+    def handle_commit(self, user):
+        while self.users_exo[user] < self.nb_exos:
+            last_chance_commit = None
+
+            while True:
+                # push autorisé si dans la limite de tag
+                if (
+                    len(self.users_commit_time[user]) < self.tag_limit
+                    or self.users_commit_time[user][0] <= self.env.now - 60
+                ):
+                    commit = Commit(
+                        user, self.env.now, self.users_exo[user], last_chance_commit
+                    )
+
+                    # si plus de place dans la FIFO de test, refus
+                    if len(self.test_queue.items) >= self.ks:
+                        print(f"{commit} : refused at test queue (FULL).")
+                        self.refusals_test += 1
+                        yield self.env.timeout(random.randint(4, 10))
+                        continue
+
+                    # pop le commit le plus vieux
+                    if len(self.users_commit_time[user]) == self.tag_limit:
+                        self.users_commit_time[user].pop(0)
+
+                    # fifo serveur de test
+                    print(f"{commit} : enters the test queue.")
+                    yield self.test_queue.put(user)
+                    with self.server.request() as request:
+                        yield request
+                        print(f"{commit} : starts testing.")
+                        yield self.env.timeout(self.process_time)
+                        print(f"{commit} : finishes testing.")
+                        yield self.test_queue.get(lambda x: x == user)
+
+                    # si plus de place dans la FIFO d'envoi, refus
+                    if len(self.result_queue.items) >= self.kf:
+                        print(
+                            f"{commit} : refused at result queue (FULL). The result is backed up."
+                        )
+                        # on ajoute le commit dans le backup
+                        self.backup_storage.put(commit)
+
+                        self.refusals_result += 1
+                        yield self.env.timeout(random.randint(4, 10))
+                        continue
+
+                    # fifo serveur d'envoi
+                    print(f"{commit} : enters the result queue.")
+                    yield self.result_queue.put(user)
+                    with self.result_server.request() as request:
+                        yield request
+                        print(f"{commit} : starts result processing.")
+                        yield self.env.timeout(self.result_time)
+                        print(f"{commit} : finishes result processing.")
+                        yield self.result_queue.get(lambda x: x == user)
+
+                    # si le commit est bon
+                    if random.random() <= commit.chance_to_pass:
+                        print(
+                            f"{commit} : commit passed for exo {self.users_exo[user]} !"
+                        )
+                        yield self.env.timeout(random.randint(5, 15))
+                        break
+                    else:
+                        print(
+                            f"{commit} : commit failed for exo {self.users_exo[user]}... Increasing chance to pass for next commit."
+                        )
+                        last_chance_commit = min(
+                            1,
+                            commit.chance_to_pass
+                            + max(min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05),
+                        )
+                        self.users_commit_time[user].append(self.env.now)
+                        yield self.env.timeout(random.randint(3, 15))
+
+            self.users_exo[user] += 1
+            self.users_commit_time[user] = []
+
+        self.users_commit_time[user] = -1

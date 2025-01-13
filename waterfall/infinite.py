@@ -1,74 +1,81 @@
 import simpy
 import random
 
-from moulinette import Moulinette
+from basics import Moulinette, Utilisateur, Commit
 
 
-# Attention: une file infinie ici précise qu'on peut avoir un nombre infini d'utilisateur qui attendent dans la file sans se faire refuser.
 class WaterfallMoulinetteInfinite(Moulinette):
     """
-    Moulinette Waterfall (infinie), avec 2 stages de processing:
+    Moulinette Waterfall Infinie, avec 2 stages de processing :
 
-    1. Placer le code dans une file d'attente FIFO infinie pour tester. (K serveurs)
-    2. Envoyer le résultat dans une file d'attente FIFO infinie. (1 serveur)
-    :param test_capacity: capacité de la file d'attente de test.
-    :param test_time: Temps de process d'un utilisateur dans la file de test.
+    1. Placer le code dans une file d'attente FIFO infinie pour exécuter des tests. (K serveurs)
+    2. Envoyer le résultat dans une file d'attente FIFO infinie pour l'envoyer au front. (1 serveur)
+
+    :param K: Nombre de FIFO pour les tests.
+    :param process_time: Temps de process d'un utilisateur dans la file de test.
     :param result_time: Temps de process d'un utilisateur dans la file de résultat.
     """
 
-    def __init__(self, test_capacity=1, test_time=1, result_time=1):
-        super().__init__(capacity=test_capacity, process_time=test_time)
+    def __init__(self, K: int = 1, process_time: int = 1, result_time: int = 1):
+        super().__init__(capacity=K, process_time=process_time)
         self.result_server = simpy.Resource(self.env, capacity=1)
         self.result_time = result_time
 
-    def run_test(self, user):
+    def handle_commit(self, user: Utilisateur):
         """
-        Simule l'exécution d'un tag dans la file de test et la réception du résultat.
+        Simule la réception et le traitement d'un commit pour un utilisateur.
+
+        :param user: Utilisateur.
         """
 
-        # File d'attente de test
         for exo in range(self.nb_exos):
-            tmp_intelligence = user.intelligence
-            while True:
-                if (
-                    len(self.users[user]) < self.tag_limit
-                    or self.users[user][0] <= self.env.now - 60
-                ):
-                    if len(self.users[user]) != 0:
-                        self.users[user].pop(0)
+            last_chance_commit = None
 
-                    user.current_exo = exo
-                    print(f"{user} enters the test queue at {self.env.now} ")
+            while True:
+                # push autorisé si dans la limite de tag
+                if (
+                    len(self.users_commit_time[user]) < self.tag_limit
+                    or self.users_commit_time[user][0] <= self.env.now - 60
+                ):
+                    # pop le commit le plus vieux
+                    if len(self.users_commit_time[user]) == self.tag_limit:
+                        self.users_commit_time[user].pop(0)
+
+                    commit = Commit(user, self.env.now, exo, last_chance_commit)
+
+                    # fifo serveur de test
+                    print(f"{commit} : enters the test queue.")
                     with self.server.request() as request:
                         yield request
-                        print(f"{user} starts testing at {self.env.now}")
+                        print(f"{commit} : starts testing.")
                         yield self.env.timeout(self.process_time)
-                        print(f"{user} finishes testing at {self.env.now}")
+                        print(f"{commit} : finishes testing.")
 
-                    # File d'attente résultats
+                    # fifo serveur d'envoi
+                    print(f"{commit} : enters the result queue.")
                     with self.result_server.request() as request:
-                        print(f"{user} enters the result queue at {self.env.now}")
                         yield request
-                        print(f"{user} starts result processing at {self.env.now}")
+                        print(f"{commit} : starts result processing.")
                         yield self.env.timeout(self.result_time)
-                        print(f"{user} finishes result processing at {self.env.now}")
+                        print(f"{commit} : finishes result processing.")
 
-                    if random.random() <= tmp_intelligence:  # commit est passé
-                        print(f"{user} finished exo {exo} ! at {self.env.now}")
+                    # si le commit est bon
+                    if random.random() <= commit.chance_to_pass:
+                        print(f"{commit} : commit passed for exo {exo} !")
                         yield self.env.timeout(random.randint(5, 15))
                         break
                     else:
                         print(
-                            f"{user} is granted an IQ refresh ! Exo {exo} failed... at {self.env.now}"
+                            f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit."
                         )
-                        tmp_intelligence = min(
+                        last_chance_commit = min(
                             1,
-                            tmp_intelligence
+                            commit.chance_to_pass
                             + max(min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05),
                         )
+                        self.users_commit_time[user].append(self.env.now)
                         yield self.env.timeout(random.randint(3, 15))
-                        self.users[user].append(self.env.now)
 
-            self.users[user] = []
+            self.users_commit_time[user] = []
 
-        self.users[user] = -1
+        self.users_commit_time[user] = -1
