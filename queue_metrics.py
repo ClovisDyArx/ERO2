@@ -180,7 +180,7 @@ class QueueMetrics:
     def plot_metrics(self):
         """Generate improved plots for all metrics with better visual separation"""
         fig = plt.figure(figsize=(20, 15))
-        gs = fig.add_gridspec(5, 2, hspace=0.5, wspace=0.3)
+        gs = fig.add_gridspec(6, 2, hspace=0.6, wspace=0.3)
 
         color_test = "#2ecc71"
         color_result = "#e74c3c"
@@ -247,7 +247,7 @@ class QueueMetrics:
         ax5.hist(total_sojourn_times, color='#3498db', alpha=0.7, bins=30)
         ax5.set_title('Distribution of total system time')
         ax5.set_xlabel('Total time spent in system')
-        ax5.set_ylabel('Number of Users')
+        ax5.set_ylabel('Number of users')
         ax5.grid(True, alpha=0.3)
 
         # 6
@@ -319,6 +319,20 @@ class QueueMetrics:
         ax8.set_ylim(0, 1.1)
         ax8.legend()
 
+        # 9
+        ax9 = fig.add_subplot(gs[5, :])
+        total_load = np.array(self.test_queue_lengths) + np.array(self.result_queue_lengths)
+        test_proportion = np.array(self.test_queue_lengths) / (total_load + 1e-10)
+        result_proportion = np.array(self.result_queue_lengths) / (total_load + 1e-10)
+
+        ax9.stackplot(self.timestamps, [test_proportion, result_proportion],
+                    labels=['Test queue', 'Result queue'],
+                    colors=[color_test, color_result], alpha=0.7)
+        ax9.set_title('Queue load balance over time')
+        ax9.set_xlabel('Time')
+        ax9.set_ylabel('Proportion of total load')
+        ax9.grid(True, alpha=0.3)
+        ax9.legend()
 
         fig.suptitle('Moulinette queue system metrics', fontsize=16, y=0.95)
         plt.savefig("metrics.png", dpi=300, bbox_inches='tight')

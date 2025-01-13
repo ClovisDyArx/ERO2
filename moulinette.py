@@ -113,7 +113,7 @@ class Moulinette:
             yield self.env.timeout(self.process_time)
             print(f"{user} finishes testing at {self.env.now}")
 
-        self.metrics.record_departure(user_id, self.env.now)
+        self.metrics.record_test_queue_exit-(user_id, self.env.now)
 
     """
     Lance une simulation complète sur tous les utilisateurs dans la moulinette.
