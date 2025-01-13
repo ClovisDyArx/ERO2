@@ -19,6 +19,7 @@ class WaterfallMoulinetteInfinite(Moulinette):
     def __init__(self, test_capacity=1, test_time=1, result_time=1):
         super().__init__(capacity=test_capacity, process_time=test_time)
         self.result_server = simpy.Resource(self.env, capacity=1)
+        self.test_time = test_time
         self.result_time = result_time
 
     def run_test(self, user):
@@ -37,21 +38,33 @@ class WaterfallMoulinetteInfinite(Moulinette):
                     if len(self.users[user]) != 0:
                         self.users[user].pop(0)
 
-                    user.current_exo = exo
-                    print(f"{user} enters the test queue at {self.env.now} ")
+                    user_id = f"{user.name}_{self.env.now}_{user.current_exo}"
+
+                    # TEST QUEUE
+                    self.metrics.record_test_queue_entry(user_id, self.env.now)
+                    print(f"{user} enters the test queue at {self.env.now}")
+
+                    # Test queue processing
                     with self.server.request() as request:
                         yield request
                         print(f"{user} starts testing at {self.env.now}")
-                        yield self.env.timeout(self.process_time)
+                        yield self.env.timeout(self.test_time)
                         print(f"{user} finishes testing at {self.env.now}")
 
-                    # File d'attente résultats
+                    self.metrics.record_test_queue_exit(user_id, self.env.now)
+
+                    # RESULTS QUEUE
+                    self.metrics.record_result_queue_entry(user_id, self.env.now)
+                    print(f"{user} enters the result queue at {self.env.now}")
+
+                    # Result queue processing
                     with self.result_server.request() as request:
-                        print(f"{user} enters the result queue at {self.env.now}")
                         yield request
                         print(f"{user} starts result processing at {self.env.now}")
                         yield self.env.timeout(self.result_time)
                         print(f"{user} finishes result processing at {self.env.now}")
+
+                    self.metrics.record_result_queue_exit(user_id, self.env.now)
 
                     if random.random() <= tmp_intelligence:  # commit est passé
                         print(f"{user} finished exo {exo} ! at {self.env.now}")

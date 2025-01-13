@@ -49,7 +49,10 @@ def moulinette_loadtest(
 
 
 if __name__ == "__main__":
-    user_list = create_user_list(["Clovis", "Mael", "Florian", "Alexandre", "Pikachu"])
+    user_list = ["Clovis", "Mael", "Florian", "Alexandre", "Pikachu"]
+    for _ in range(6):
+        user_list.extend(user_list)
+    user_list = create_user_list(user_list)
 
     # print("=== Moulinette (Baseline) ===\n")
     # moulinette = Moulinette(capacity=2, process_time=2)
@@ -57,7 +60,7 @@ if __name__ == "__main__":
 
     print("\n\n=== Waterfall Moulinette (Infinite Queues) ===\n")
     wm_inf = WaterfallMoulinetteInfinite(test_capacity=2, test_time=2, result_time=2)
-    moulinette_loadtest(wm_inf, user_list, until=10000000000)
+    moulinette_loadtest(wm_inf, user_list, until=5000)
 
     # print("\n\n=== Waterfall Moulinette (Finite Queues) ===\n")
     # wm_fin = WaterfallMoulinetteFinite(test_capacity=1, ks=2, kf=2, test_time=1, result_time=1)
