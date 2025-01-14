@@ -41,7 +41,7 @@ def launch_test(
         | ChannelsAndDams
     ),
     user_list: list[Utilisateur],
-    until: int = 100000,
+    until: int | None = None,
 ):
     """
     Charge test la moulinette avec une liste d'utilisateurs.
@@ -59,28 +59,30 @@ def launch_test(
         moulinette.env.process(moulinette.regulate_ing())
 
     # process d'utilisation du backup quand le serveur back est libre dans le cas de Waterfall avec backup
-    if isinstance(moulinette, WaterfallMoulinetteFiniteBackup):
+    if isinstance(moulinette, WaterfallMoulinetteFiniteBackup) or isinstance(
+        moulinette, ChannelsAndDams
+    ):
         moulinette.env.process(moulinette.free_backup())
 
     moulinette.start_simulation(until=until)
 
 
 if __name__ == "__main__":
-    user_list = create_user_list(generate_users_names(8))
+    user_list = create_user_list(generate_users_names(100))
 
     # print("\n\n=== Waterfall Moulinette (Infinite Queues) ===\n")
     # wm_inf = WaterfallMoulinetteInfinite(K=2, process_time=2, result_time=2)
     # launch_test(wm_inf, user_list, until=200)
 
-    print("\n\n=== Waterfall Moulinette (Finite Queues) ===\n")
-    wm_fin = WaterfallMoulinetteFinite(K=2, ks=2, kf=3, process_time=3, result_time=3)
-    launch_test(wm_fin, user_list, until=200)
+    # print("\n\n=== Waterfall Moulinette (Finite Queues) ===\n")
+    # wm_fin = WaterfallMoulinetteFinite(K=2, ks=2, kf=3, process_time=3, result_time=3)
+    # launch_test(wm_fin, user_list, until=200)
 
-    # print("\n\n=== Waterfall Moulinette (Finite Queues with Backup) ===\n")
-    # wm_fin_back = WaterfallMoulinetteFiniteBackup(
-    #     K=2, ks=3, kf=2, process_time=4, result_time=1
-    # )
-    # launch_test(wm_fin_back, user_list)
+    print("\n\n=== Waterfall Moulinette (Finite Queues with Backup) ===\n")
+    wm_fin_back = WaterfallMoulinetteFiniteBackup(
+        K=5, process_time=3, result_time=3, ks=10, kf=20
+    )
+    launch_test(wm_fin_back, user_list, until=None)
 
     # print("\n\n=== Channels & Dams Moulinette ===\n")
     # cd = ChannelsAndDams(K=2, process_time=2, result_time=2, tb=5, block_option=True)

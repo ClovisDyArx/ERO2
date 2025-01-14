@@ -2,7 +2,7 @@ import simpy
 import random
 
 from .finite import WaterfallMoulinetteFinite
-from basics import Commit
+from basics import Commit, Utilisateur
 
 
 class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
@@ -11,6 +11,9 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
 
     1. Placer le code dans une file d'attente FIFO finie (taille ks) pour exécuter des tests. (K serveurs)
     2. Envoyer le résultat dans une file d'attente FIFO finie (taille kf) pour l'envoyer au front. (1 serveur)
+
+    Si un blocage survient au niveau du serveur d'envoi du résultat, le résultat du test est envoyé dans un backup.
+    Lorsque la queue des résultats est libre, les commits du backup y sont poussés.
 
     :param K: Nombre de FIFO pour les tests.
     :param process_time: Temps de process d'un utilisateur dans la file de test.
@@ -23,16 +26,28 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
         self,
         K: int = 1,
         process_time: int = 1,
+        tag_limit: int = 5,
+        nb_exos: int = 10,
         result_time: int = 1,
         ks: int = 1,
         kf: int = 1,
     ):
-        super().__init__(K, ks, kf, process_time, result_time)
-        self.backup_storage = simpy.FilterStore(self.env)
+        super().__init__(
+            K=K,
+            process_time=process_time,
+            result_time=result_time,
+            tag_limit=tag_limit,
+            nb_exos=nb_exos,
+            ks=ks,
+            kf=kf,
+        )
 
     def free_backup(self):
         while True:
-            if all(value == -1 for value in self.users_commit_time.values()):
+            if (
+                all(value == -1 for value in self.users_commit_time.values())
+                and len(self.backup_storage.items) == 0
+            ):
                 break
 
             # si des commits dans le backup et que la queue d'envoi de résultat est libre
@@ -40,10 +55,18 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
                 len(self.backup_storage.items) > 0
                 and len(self.result_queue.items) < self.kf
             ):
-                commit: Commit = self.backup_storage.get().value
-                if commit.exo != self.users_exo[commit.user]:
+                c, user_id = self.backup_storage.get().value
+                commit: Commit = c
+                commit.date = self.env.now
+
+                if commit.exo != self.users_exo[commit.user] and not all(
+                    value == -1 for value in self.users_commit_time.values()
+                ):
                     yield self.env.timeout(1)
                     continue
+
+                # métriques queue résultat
+                self.metrics.record_result_queue_entry(user_id, self.env.now)
 
                 print(f"{commit} : enters the result queue. [BACKUP]")
                 yield self.result_queue.put(commit.user)
@@ -54,18 +77,29 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
                     print(f"{commit} : finishes result processing. [BACKUP]")
                     yield self.result_queue.get(lambda x: x == commit.user)
 
+                self.metrics.record_result_queue_exit(user_id, self.env.now)
+
                 if random.random() <= commit.chance_to_pass:
                     print(
                         f"{commit} : commit passed for exo {self.users_exo[commit.user]} ! [BACKUP]"
                     )
 
-                    self.users_exo[commit.user] += 1
-                    self.users_commit_time[commit.user] = []
+                    if not all(
+                        value == -1 for value in self.users_commit_time.values()
+                    ):
+                        self.users_exo[commit.user] += 1
+                        self.users_commit_time[commit.user] = []
 
             else:
                 yield self.env.timeout(1)
 
-    def handle_commit(self, user):
+    def handle_commit(self, user: Utilisateur):
+        """
+        Simule la réception et le traitement d'un commit pour un utilisateur.
+
+        :param user: Utilisateur.
+        """
+
         while self.users_exo[user] < self.nb_exos:
             last_chance_commit = None
 
@@ -75,12 +109,13 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
                     len(self.users_commit_time[user]) < self.tag_limit
                     or self.users_commit_time[user][0] <= self.env.now - 60
                 ):
-                    commit = Commit(
-                        user, self.env.now, self.users_exo[user], last_chance_commit
-                    )
+                    exo = self.users_exo[user]
+                    commit = Commit(user, self.env.now, exo, last_chance_commit)
+                    user_id = f"{user.name}_{self.env.now}_{exo}"
 
                     # si plus de place dans la FIFO de test, refus
                     if len(self.test_queue.items) >= self.ks:
+                        self.metrics.record_test_queue_blocked(self.env.now)
                         print(f"{commit} : refused at test queue (FULL).")
                         self.refusals_test += 1
                         yield self.env.timeout(random.randint(4, 10))
@@ -90,27 +125,36 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
                     if len(self.users_commit_time[user]) == self.tag_limit:
                         self.users_commit_time[user].pop(0)
 
+                    # test queue metrics
+                    self.metrics.record_test_queue_entry(user_id, self.env.now)
+
                     # fifo serveur de test
                     print(f"{commit} : enters the test queue.")
                     yield self.test_queue.put(user)
-                    with self.server.request() as request:
+                    with self.test_server.request() as request:
                         yield request
                         print(f"{commit} : starts testing.")
                         yield self.env.timeout(self.process_time)
                         print(f"{commit} : finishes testing.")
                         yield self.test_queue.get(lambda x: x == user)
 
+                    self.metrics.record_test_queue_exit(user_id, self.env.now)
+
                     # si plus de place dans la FIFO d'envoi, refus
                     if len(self.result_queue.items) >= self.kf:
+                        self.metrics.record_result_queue_blocked(self.env.now)
                         print(
                             f"{commit} : refused at result queue (FULL). The result is backed up."
                         )
                         # on ajoute le commit dans le backup
-                        self.backup_storage.put(commit)
+                        self.backup_storage.put((commit, user_id))
 
                         self.refusals_result += 1
                         yield self.env.timeout(random.randint(4, 10))
                         continue
+
+                    # métriques queue résultat
+                    self.metrics.record_result_queue_entry(user_id, self.env.now)
 
                     # fifo serveur d'envoi
                     print(f"{commit} : enters the result queue.")
@@ -122,16 +166,16 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
                         print(f"{commit} : finishes result processing.")
                         yield self.result_queue.get(lambda x: x == user)
 
+                    self.metrics.record_result_queue_exit(user_id, self.env.now)
+
                     # si le commit est bon
                     if random.random() <= commit.chance_to_pass:
-                        print(
-                            f"{commit} : commit passed for exo {self.users_exo[user]} !"
-                        )
+                        print(f"{commit} : commit passed for exo {exo} !")
                         yield self.env.timeout(random.randint(5, 15))
                         break
                     else:
                         print(
-                            f"{commit} : commit failed for exo {self.users_exo[user]}... Increasing chance to pass for next commit."
+                            f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit."
                         )
                         last_chance_commit = min(
                             1,

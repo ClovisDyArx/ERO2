@@ -57,26 +57,31 @@ class Moulinette:
     """
     Initialise une instance de moulinette.
 
-    :param capacity: Nombre d'utilisateur en simultanée dans la file.
-    :param process_time: Temps de process d'un utilisateur dans la file.
-    :param tag_limit: Nombre de tag limite par heure (60 unités de temps)
+    :param K: Nombre de FIFOs pour les tests.
+    :param process_time: Temps de process d'un utilisateur dans la file de test.
+    :param result_time: Temps de process d'un utilisateur dans la file d'envoi.
+    :param tag_limit: Nombre de tag limite par heure (60 unités de temps).
+    :param nb_exos: Nombre d'exos par utilisateur.
     """
 
     def __init__(
         self,
-        capacity: int = 10,
+        K: int = 10,
         process_time: int = 1,
+        result_time: int = 1,
         tag_limit: int = 5,
         nb_exos: int = 10,
     ):
         self.env = simpy.Environment()
-        self.server = simpy.Resource(self.env, capacity=capacity)
+        self.test_server = simpy.Resource(self.env, capacity=K)
         self.result_server = simpy.Resource(self.env, capacity=1)
         self.tag_limit = tag_limit
         self.process_time = process_time
+        self.result_time = result_time
         self.nb_exos = nb_exos
         self.users_commit_time = {}  # user -> [timestep, ...] (maxlen tag_limit)
         self.users_exo = {}
+        self.backup_storage = simpy.FilterStore(self.env)
         self.metrics = QueueMetrics()
 
     def collect_metrics(self):
@@ -84,14 +89,21 @@ class Moulinette:
         Collect metrics at regular intervals
         """
         while True:
+            if (
+                all(value == -1 for value in self.users_commit_time.values())
+                and len(self.backup_storage.items) == 0
+            ):
+                break
+
             # Test queue metrics
-            test_queue_length = len(self.server.queue)
-            test_server_count = self.server.count
+            test_queue_length = len(self.test_server.queue)
+            test_server_count = self.test_server.count
             test_utilization = (
-                self.server.count / self.server.capacity
-                if self.server.capacity > 0
+                self.test_server.count / self.test_server.capacity
+                if self.test_server.capacity > 0
                 else 0
             )
+            backup_length = len(self.backup_storage.items)
 
             # Result queue metrics
             result_queue_length = len(self.result_server.queue)
@@ -106,6 +118,7 @@ class Moulinette:
                 self.env.now,
                 test_agents=test_server_count,
                 test_queue_length=test_queue_length,
+                backup_length=backup_length,
                 result_agents=result_server_count,
                 result_queue_length=result_queue_length,
                 test_server_utilization=test_utilization,
@@ -125,22 +138,7 @@ class Moulinette:
         self.users_commit_time[user] = []
         self.users_exo[user] = 0
 
-    def handle_commit(self, user: Utilisateur):
-        """
-        Simule la réception et le traitement d'un commit pour un utilisateur.
-
-        :param user: Utilisateur.
-        """
-        commit = Commit(user, self.env.now, 0)
-
-        print(f"{commit} : enters the queue.")
-        with self.server.request() as request:
-            yield request
-            print(f"{commit} : starts testing.")
-            yield self.env.timeout(self.process_time)
-            print(f"{commit} : finishes testing.")
-
-    def start_simulation(self, until: int):
+    def start_simulation(self, until: int | None):
         """
         Lance une simulation complète sur tous les utilisateurs dans la moulinette et affiche des métriques.
 

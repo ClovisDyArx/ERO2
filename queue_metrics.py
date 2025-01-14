@@ -34,6 +34,8 @@ class QueueMetrics:
     # ===== System-wide metrics =====
     # -> total number of users in the entire system at each timestamp
     system_clients: List[int] = field(default_factory=list)
+    # -> backup length (results accumulation)
+    backup_length: List[int] = field(default_factory=list)
 
     # ===== Timing tracking for each queue =====
     # -> used to calculate time spent waiting for testing
@@ -55,6 +57,7 @@ class QueueMetrics:
         env_time: float,
         test_agents: int,
         test_queue_length: int,
+        backup_length: int,
         result_agents: int,
         result_queue_length: int,
         test_server_utilization: float,
@@ -67,6 +70,9 @@ class QueueMetrics:
         self.test_server_count.append(test_agents)
         self.test_queue_lengths.append(test_queue_length)
         self.test_server_utilization.append(test_server_utilization)
+
+        # backup
+        self.backup_length.append(backup_length)
 
         # result queue
         self.result_server_count.append(result_agents)
@@ -244,6 +250,7 @@ class QueueMetrics:
             "Number of users in queue",
         )
         ax1.grid(True, alpha=0.3)
+        ax1.set_ylim(0)
         ax1.legend(loc="upper right")
 
         # 2
@@ -370,10 +377,11 @@ class QueueMetrics:
             ax7.set_title("System throughput rate")
             ax7.set_xlabel("Time")
             ax7.set_ylabel("Jobs completed per unit")
+            ax7.set_ylim(0)
             ax7.grid(True, alpha=0.3)
 
         # 8
-        ax8 = fig.add_subplot(gs[4, :])
+        ax8 = fig.add_subplot(gs[4, 0])
         block_window = max(1, len(self.timestamps) // window_size)
 
         test_blocks = []
@@ -407,25 +415,35 @@ class QueueMetrics:
         ax8.legend()
 
         # 9
-        ax9 = fig.add_subplot(gs[5, :])
+        ax9 = fig.add_subplot(gs[4, 1])
+        ax9.plot(self.timestamps, self.backup_length, color="#3498db")
+        ax9.set_title("Result backup length over time")
+        ax9.set_xlabel("Time")
+        ax9.set_ylabel("Backup length")
+        ax9.grid(True, alpha=0.3)
+        ax9.set_ylim(0)
+        ax9.legend()
+
+        # 10
+        ax10 = fig.add_subplot(gs[5, :])
         total_load = np.array(self.test_queue_lengths) + np.array(
             self.result_queue_lengths
         )
         test_proportion = np.array(self.test_queue_lengths) / (total_load + 1e-10)
         result_proportion = np.array(self.result_queue_lengths) / (total_load + 1e-10)
 
-        ax9.stackplot(
+        ax10.stackplot(
             self.timestamps,
             [test_proportion, result_proportion],
             labels=["Test queue", "Result queue"],
             colors=[color_test, color_result],
             alpha=0.7,
         )
-        ax9.set_title("Queue load balance over time")
-        ax9.set_xlabel("Time")
-        ax9.set_ylabel("Proportion of total load")
-        ax9.grid(True, alpha=0.3)
-        ax9.legend()
+        ax10.set_title("Queue load balance over time")
+        ax10.set_xlabel("Time")
+        ax10.set_ylabel("Proportion of total load")
+        ax10.grid(True, alpha=0.3)
+        ax10.legend()
 
         fig.suptitle("Moulinette queue system metrics", fontsize=16, y=0.95)
         plt.savefig("metrics.png", dpi=300, bbox_inches="tight")

@@ -2,7 +2,7 @@ import simpy
 import random
 
 from .infinite import WaterfallMoulinetteInfinite
-from basics import Commit
+from basics import Commit, Utilisateur
 
 
 class WaterfallMoulinetteFinite(WaterfallMoulinetteInfinite):
@@ -19,8 +19,23 @@ class WaterfallMoulinetteFinite(WaterfallMoulinetteInfinite):
     :param kf: Taille de la FIFO pour l'envoi des résultats.
     """
 
-    def __init__(self, K: int = 1, process_time: int = 1, result_time=1, ks=1, kf=1):
-        super().__init__(K=K, process_time=process_time, result_time=result_time)
+    def __init__(
+        self,
+        K: int = 1,
+        process_time: int = 1,
+        tag_limit: int = 5,
+        nb_exos: int = 10,
+        result_time: int = 1,
+        ks: int = 1,
+        kf: int = 1,
+    ):
+        super().__init__(
+            K=K,
+            process_time=process_time,
+            result_time=result_time,
+            tag_limit=tag_limit,
+            nb_exos=nb_exos,
+        )
         self.ks = ks
         self.kf = kf
         self.test_queue = simpy.FilterStore(self.env, capacity=self.ks)
@@ -28,7 +43,7 @@ class WaterfallMoulinetteFinite(WaterfallMoulinetteInfinite):
         self.refusals_test = 0
         self.refusals_result = 0
 
-    def handle_commit(self, user):
+    def handle_commit(self, user: Utilisateur):
         """
         Simule la réception et le traitement d'un commit pour un utilisateur.
 
@@ -65,7 +80,7 @@ class WaterfallMoulinetteFinite(WaterfallMoulinetteInfinite):
                     # fifo serveur de test
                     print(f"{commit} : enters the test queue.")
                     yield self.test_queue.put(user)
-                    with self.server.request() as request:
+                    with self.test_server.request() as request:
                         yield request
                         print(f"{commit} : starts testing.")
                         yield self.env.timeout(self.process_time)

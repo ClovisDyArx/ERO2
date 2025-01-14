@@ -15,10 +15,21 @@ class WaterfallMoulinetteInfinite(Moulinette):
     :param result_time: Temps de process d'un utilisateur dans la file de résultat.
     """
 
-    def __init__(self, K: int = 1, process_time: int = 1, result_time: int = 1):
-        super().__init__(capacity=K, process_time=process_time)
-        self.process_time = process_time
-        self.result_time = result_time
+    def __init__(
+        self,
+        K: int = 1,
+        process_time: int = 1,
+        result_time: int = 1,
+        tag_limit: int = 5,
+        nb_exos: int = 10,
+    ):
+        super().__init__(
+            K=K,
+            process_time=process_time,
+            result_time=result_time,
+            tag_limit=tag_limit,
+            nb_exos=nb_exos,
+        )
 
     def handle_commit(self, user: Utilisateur):
         """
@@ -50,7 +61,7 @@ class WaterfallMoulinetteInfinite(Moulinette):
 
                     # métriques queue test
                     print(f"{commit} : enters the test queue.")
-                    with self.server.request() as request:
+                    with self.test_server.request() as request:
                         yield request
                         print(f"{commit} : starts testing.")
                         yield self.env.timeout(self.process_time)
