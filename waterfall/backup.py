@@ -42,6 +42,30 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
             kf=kf,
         )
 
+    def _process_backup_result(self, commit: Commit, user_id: str):
+        self.metrics.record_result_queue_entry(user_id, self.env.now)
+
+        print(f"{commit} : enters the result queue. [BACKUP]")
+        yield self.result_queue.put(commit.user)
+
+        with self.result_server.request() as request:
+            yield request
+            print(f"{commit} : starts result processing. [BACKUP]")
+            yield self.env.timeout(self.result_time)
+            print(f"{commit} : finishes result processing. [BACKUP]")
+            yield self.result_queue.get(lambda x: x == commit.user)
+
+        self.metrics.record_result_queue_exit(user_id, self.env.now)
+
+        if random.random() <= commit.chance_to_pass:
+            print(
+                f"{commit} : commit passed for exo {self.users_exo[commit.user]} ! [BACKUP]"
+            )
+
+            if not all(value == -1 for value in self.users_commit_time.values()):
+                self.users_exo[commit.user] += 1
+                self.users_commit_time[commit.user] = []
+
     def free_backup(self):
         while True:
             if (
@@ -50,48 +74,23 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
             ):
                 break
 
-            # si des commits dans le backup et que la queue d'envoi de résultat est libre
-            if (
-                len(self.backup_storage.items) > 0
-                and len(self.result_queue.items) < self.kf
-            ):
-                c, user_id = self.backup_storage.get().value
-                commit: Commit = c
-                commit.date = self.env.now
+            available_space = self.kf - len(self.result_queue.items)
 
-                if commit.exo != self.users_exo[commit.user] and not all(
-                    value == -1 for value in self.users_commit_time.values()
-                ):
-                    yield self.env.timeout(1)
-                    continue
+            if available_space > 0 and len(self.backup_storage.items) > 0:
+                for _ in range(min(available_space, len(self.backup_storage.items))):
+                    backup_item = self.backup_storage.get().value
+                    c, user_id = backup_item
+                    commit = c
+                    commit.date = self.env.now
 
-                # métriques queue résultat
-                self.metrics.record_result_queue_entry(user_id, self.env.now)
-
-                print(f"{commit} : enters the result queue. [BACKUP]")
-                yield self.result_queue.put(commit.user)
-                with self.result_server.request() as request:
-                    yield request
-                    print(f"{commit} : starts result processing. [BACKUP]")
-                    yield self.env.timeout(self.result_time)
-                    print(f"{commit} : finishes result processing. [BACKUP]")
-                    yield self.result_queue.get(lambda x: x == commit.user)
-
-                self.metrics.record_result_queue_exit(user_id, self.env.now)
-
-                if random.random() <= commit.chance_to_pass:
-                    print(
-                        f"{commit} : commit passed for exo {self.users_exo[commit.user]} ! [BACKUP]"
-                    )
-
-                    if not all(
+                    if commit.exo != self.users_exo[commit.user] and not all(
                         value == -1 for value in self.users_commit_time.values()
                     ):
-                        self.users_exo[commit.user] += 1
-                        self.users_commit_time[commit.user] = []
+                        continue
 
-            else:
-                yield self.env.timeout(1)
+                    self.env.process(self._process_backup_result(commit, user_id))
+
+            yield self.env.timeout(1)
 
     def handle_commit(self, user: Utilisateur):
         """
