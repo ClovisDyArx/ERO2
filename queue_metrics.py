@@ -222,7 +222,7 @@ class QueueMetrics:
 
         return metrics
 
-    def plot_metrics(self):
+    def plot_metrics(self, save_filename: str = "metrics.png"):
         """Generate improved plots for all metrics with better visual separation"""
         fig = plt.figure(figsize=(20, 15))
         gs = fig.add_gridspec(6, 2, hspace=0.6, wspace=0.3)
@@ -235,13 +235,13 @@ class QueueMetrics:
         ax1.plot(
             self.timestamps,
             self.test_queue_lengths,
-            label="Test queue",
+            label="Test q.",
             color=color_test,
         )
         ax1.plot(
             self.timestamps,
             self.result_queue_lengths,
-            label="Result queue",
+            label="Result q.",
             color=color_result,
         )
         ax1.set_title("Queue lengths over time")
@@ -255,7 +255,7 @@ class QueueMetrics:
 
         # 2
         ax2 = fig.add_subplot(gs[1, 0])
-        ax2.fill(self.timestamps, self.test_server_utilization, color=color_test)
+        ax2.fill_between(self.timestamps, self.test_server_utilization, color=color_test)
         ax2.set_title("Test server utilization over time")
         ax2.set_xlabel("Time")
         ax2.set_ylabel("Utilization rate")
@@ -264,7 +264,7 @@ class QueueMetrics:
 
         # 3
         ax3 = fig.add_subplot(gs[1, 1])
-        ax3.fill(self.timestamps, self.result_server_utilization, color=color_result)
+        ax3.fill_between(self.timestamps, self.result_server_utilization, color=color_result)
         ax3.set_title("Result server utilization over time")
         ax3.set_xlabel("Time")
         ax3.set_ylabel("Utilization rate")
@@ -305,7 +305,7 @@ class QueueMetrics:
         # 4
         ax4.hist(
             [test_sojourn_times, result_sojourn_times],
-            label=["Test queue", "Result queue"],
+            label=["Test q.", "Result q."],
             color=[color_test, color_result],
             bins=30,
         )
@@ -313,7 +313,8 @@ class QueueMetrics:
         ax4.set_xlabel("Time spent in queue")
         ax4.set_ylabel("Number of users")
         ax4.grid(True, alpha=0.3)
-        ax4.legend()
+        ax4.set_yscale("log")
+        ax4.legend(loc="upper right")
 
         # 5
         ax5 = fig.add_subplot(gs[2, 1])
@@ -332,7 +333,7 @@ class QueueMetrics:
             cumsum = np.cumsum(np.insert(test_sojourn_times, 0, 0))
             test_ma = (cumsum[window_size:] - cumsum[:-window_size]) / window_size
             ax6.plot(
-                np.arange(len(test_ma)), test_ma, label="Test queue", color=color_test
+                np.arange(len(test_ma)), test_ma, label="Test q.", color=color_test
             )
 
         if result_sojourn_times:
@@ -341,7 +342,7 @@ class QueueMetrics:
             ax6.plot(
                 range(len(result_ma)),
                 result_ma,
-                label="Result queue",
+                label="Result q.",
                 color=color_result,
             )
 
@@ -492,7 +493,7 @@ class QueueMetrics:
         ax10.stackplot(
             self.timestamps,
             [test_proportion, result_proportion],
-            labels=["Test queue", "Result queue"],
+            labels=["Test q.", "Result q."],
             colors=[color_test, color_result],
             alpha=0.7,
         )
@@ -503,5 +504,5 @@ class QueueMetrics:
         ax10.legend()
 
         fig.suptitle("Moulinette queue system metrics", fontsize=16, y=0.95)
-        plt.savefig("metrics.png", dpi=300, bbox_inches="tight")
+        plt.savefig(save_filename, dpi=300, bbox_inches="tight")
         plt.close()

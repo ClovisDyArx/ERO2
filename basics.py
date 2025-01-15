@@ -96,8 +96,8 @@ class Moulinette:
                 break
 
             # Test queue metrics
-            test_queue_length = len(self.test_server.queue)
             test_server_count = self.test_server.count
+            test_queue_length = len(self.test_server.queue) + test_server_count
             test_utilization = (
                 self.test_server.count / self.test_server.capacity
                 if self.test_server.capacity > 0
@@ -106,8 +106,8 @@ class Moulinette:
             backup_length = len(self.backup_storage.items)
 
             # Result queue metrics
-            result_queue_length = len(self.result_server.queue)
             result_server_count = self.result_server.count
+            result_queue_length = len(self.result_server.queue) + result_server_count
             result_utilization = (
                 self.result_server.count / self.result_server.capacity
                 if self.result_server.capacity > 0
@@ -138,7 +138,7 @@ class Moulinette:
         self.users_commit_time[user] = []
         self.users_exo[user] = 0
 
-    def start_simulation(self, until: int | None):
+    def start_simulation(self, until: int | None, save_filename: str = "metrics.png"):
         """
         Lance une simulation complète sur tous les utilisateurs dans la moulinette et affiche des métriques.
 
@@ -169,4 +169,4 @@ class Moulinette:
 
         print(f"\nThroughput: {metrics['throughput']}")
 
-        self.metrics.plot_metrics()
+        self.metrics.plot_metrics(save_filename=save_filename)
