@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple
 from dataclasses import dataclass, field
-
+from tqdm import tqdm
 
 @dataclass
 class QueueMetrics:
@@ -255,7 +255,7 @@ class QueueMetrics:
 
         # 2
         ax2 = fig.add_subplot(gs[1, 0])
-        ax2.plot(self.timestamps, self.test_server_utilization, color=color_test)
+        ax2.fill(self.timestamps, self.test_server_utilization, color=color_test)
         ax2.set_title("Test server utilization over time")
         ax2.set_xlabel("Time")
         ax2.set_ylabel("Utilization rate")
@@ -264,7 +264,7 @@ class QueueMetrics:
 
         # 3
         ax3 = fig.add_subplot(gs[1, 1])
-        ax3.plot(self.timestamps, self.result_server_utilization, color=color_result)
+        ax3.fill(self.timestamps, self.result_server_utilization, color=color_result)
         ax3.set_title("Result server utilization over time")
         ax3.set_xlabel("Time")
         ax3.set_ylabel("Utilization rate")
@@ -277,7 +277,7 @@ class QueueMetrics:
         result_sojourn_times = []
         total_sojourn_times = []
 
-        for user_id in self.test_queue_entry_times:
+        for user_id in tqdm(self.test_queue_entry_times, desc="Computing sojourn times distribution"):
             if user_id in self.test_queue_exit_times:
                 test_time = (
                     self.test_queue_exit_times[user_id]
@@ -317,15 +317,16 @@ class QueueMetrics:
 
         # 5
         ax5 = fig.add_subplot(gs[2, 1])
-        ax5.hist(total_sojourn_times, color="#3498db", alpha=0.7, bins=30)
+        ax5.hist(total_sojourn_times, color="#3498db", alpha=0.7, bins=60)
         ax5.set_title("Distribution of total system time")
         ax5.set_xlabel("Total time spent in system")
         ax5.set_ylabel("Number of users")
+        ax5.set_yscale("log")
         ax5.grid(True, alpha=0.3)
 
         # 6
         ax6 = fig.add_subplot(gs[3, 0])
-        window_size = 20
+        window_size = max(1, len(self.timestamps) // 20)
 
         if test_sojourn_times:
             cumsum = np.cumsum(np.insert(test_sojourn_times, 0, 0))
@@ -353,32 +354,90 @@ class QueueMetrics:
 
         # 7
         ax7 = fig.add_subplot(gs[3, 1])
-        window_size = max(1, len(self.timestamps) // window_size)
 
         completed_jobs = []
-        for t in self.timestamps:
-            completed_in_interval = len(
-                [
-                    uid
-                    for uid in self.test_queue_entry_times
-                    if uid in self.result_queue_exit_times
-                    and self.result_queue_exit_times[uid] <= t
-                ]
-            )
-            completed_jobs.append(completed_in_interval)
+        attempted_jobs = []
+        timestamps_after_warmup = []
 
-        # throughput rate (jobs per unit time)
-        if len(completed_jobs) > window_size:
-            throughput_rate = [
-                (completed_jobs[i] - completed_jobs[i - window_size]) / window_size
-                for i in range(window_size, len(completed_jobs))
-            ]
-            ax7.plot(self.timestamps[window_size:], throughput_rate, color="#3498db")
-            ax7.set_title("System throughput rate")
-            ax7.set_xlabel("Time")
-            ax7.set_ylabel("Jobs completed per unit")
-            ax7.set_ylim(0)
-            ax7.grid(True, alpha=0.3)
+
+        if self.timestamps:
+            # warmup period (10% of simulation time)
+            warmup_period = self.timestamps[-1] * 0.1
+            window_size = max(1, len(self.timestamps) // 20)
+
+            # Collect data after warmup period
+            for t in tqdm(self.timestamps, desc="Computing throughput intervals"):
+                if t >= warmup_period:  # Only consider data after warmup
+                    # Count completed jobs up to this time
+                    completed_in_interval = len([
+                        uid for uid in self.test_queue_entry_times
+                        if uid in self.result_queue_exit_times
+                        and self.result_queue_exit_times[uid] <= t
+                    ])
+
+                    # Count attempted jobs up to this time
+                    attempted_in_interval = len([
+                        uid for uid in self.test_queue_entry_times
+                        if self.test_queue_entry_times[uid] <= t
+                    ])
+
+                    completed_jobs.append(completed_in_interval)
+                    attempted_jobs.append(attempted_in_interval)
+                    timestamps_after_warmup.append(t)
+
+            # Calculate rates using sliding window
+            if len(completed_jobs) > window_size:
+                completed_rates = [
+                    (completed_jobs[i] - completed_jobs[i - window_size]) /
+                    (timestamps_after_warmup[i] - timestamps_after_warmup[i - window_size])
+                    for i in range(window_size, len(completed_jobs))
+                ]
+
+                attempted_rates = [
+                    (attempted_jobs[i] - attempted_jobs[i - window_size]) /
+                    (timestamps_after_warmup[i] - timestamps_after_warmup[i - window_size])
+                    for i in range(window_size, len(attempted_jobs))
+                ]
+
+                # Plot both rates
+                ax7.plot(
+                    timestamps_after_warmup[window_size:],
+                    completed_rates,
+                    label="Completed throughput",
+                    color="#2ecc71"
+                )
+                ax7.plot(
+                    timestamps_after_warmup[window_size:],
+                    attempted_rates,
+                    label="Attempted throughput",
+                    color="#e74c3c",
+                    linestyle="--"
+                )
+
+        ax7.set_title("System throughput rates")
+        ax7.set_xlabel("Time")
+        ax7.set_ylabel("Jobs per unit time")
+        ax7.grid(True, alpha=0.3)
+        ax7.set_ylim(0)
+        ax7.legend(loc="upper right")
+
+        # Add text box with average values
+        avg_completed = np.mean(completed_rates)
+        avg_attempted = np.mean(attempted_rates)
+        effective_ratio = avg_completed / avg_attempted if avg_attempted > 0 else 0
+
+        stats_text = (
+            f"Avg completed: {avg_completed:.2f}\n"
+            f"Avg attempted: {avg_attempted:.2f}\n"
+            f"Effective ratio: {effective_ratio:.2%}"
+        )
+        ax7.text(
+            0.02, 0.98, stats_text,
+            transform=ax7.transAxes,
+            bbox=dict(facecolor='white', alpha=0.8),
+            verticalalignment='top',
+            fontsize=8
+        )
 
         # 8
         ax8 = fig.add_subplot(gs[4, 0])
@@ -386,7 +445,7 @@ class QueueMetrics:
 
         test_blocks = []
         result_blocks = []
-        for t in self.timestamps:
+        for t in tqdm(self.timestamps, desc="Computing blocking probability"):
             test_blocked = sum(
                 1
                 for time in range(max(0, t - block_window), t)
@@ -412,7 +471,7 @@ class QueueMetrics:
         ax8.set_ylabel("Blocking probability")
         ax8.grid(True, alpha=0.3)
         ax8.set_ylim(0, 1.1)
-        ax8.legend()
+        ax8.legend(loc="upper left")
 
         # 9
         ax9 = fig.add_subplot(gs[4, 1])
@@ -422,7 +481,6 @@ class QueueMetrics:
         ax9.set_ylabel("Backup length")
         ax9.grid(True, alpha=0.3)
         ax9.set_ylim(0)
-        ax9.legend()
 
         # 10
         ax10 = fig.add_subplot(gs[5, :])

@@ -170,7 +170,7 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
                     # si le commit est bon
                     if random.random() <= commit.chance_to_pass:
                         print(f"{commit} : commit passed for exo {exo} !")
-                        yield self.env.timeout(random.randint(5, 15))
+                        yield self.env.timeout(random.randint(20, 120))
                         break
                     else:
                         print(
