@@ -68,7 +68,7 @@ def launch_test(
 
 
 if __name__ == "__main__":
-    user_list = create_user_list(generate_users_names(130))
+    user_list = create_user_list(generate_users_names(100))
 
     # print("\n\n=== Waterfall Moulinette (Infinite Queues) ===\n")
     # wm_inf = WaterfallMoulinetteInfinite(K=2, process_time=2, result_time=2)

@@ -326,7 +326,7 @@ class QueueMetrics:
 
         # 6
         ax6 = fig.add_subplot(gs[3, 0])
-        window_size = max(1, len(self.timestamps) // 20)
+        window_size = max(1, len(self.timestamps) // 40)
 
         if test_sojourn_times:
             cumsum = np.cumsum(np.insert(test_sojourn_times, 0, 0))
@@ -363,7 +363,7 @@ class QueueMetrics:
         if self.timestamps:
             # warmup period (10% of simulation time)
             warmup_period = self.timestamps[-1] * 0.1
-            window_size = max(1, len(self.timestamps) // 20)
+            window_size = max(1, len(self.timestamps) // 40)
 
             # Collect data after warmup period
             for t in tqdm(self.timestamps, desc="Computing throughput intervals"):
@@ -441,37 +441,36 @@ class QueueMetrics:
 
         # 8
         ax8 = fig.add_subplot(gs[4, 0])
+
+        test_blocked_times_set = set(self.test_queue_blocked_times)
+        result_blocked_times_set = set(self.result_queue_blocked_times)
+        window_size = max(1, len(self.timestamps) // 40)
         block_window = max(1, len(self.timestamps) // window_size)
 
-        test_blocks = []
-        result_blocks = []
-        for t in tqdm(self.timestamps, desc="Computing blocking probability"):
-            test_blocked = sum(
-                1
-                for time in range(max(0, t - block_window), t)
-                if time in self.test_queue_blocked_times
-            )
-            result_blocked = sum(
-                1
-                for time in range(max(0, t - block_window), t)
-                if time in self.result_queue_blocked_times
-            )
+        if block_window > 0:
+            test_blocks = np.zeros(len(self.timestamps))
+            result_blocks = np.zeros(len(self.timestamps))
 
-            test_blocks.append(test_blocked / block_window if block_window > 0 else 0)
-            result_blocks.append(
-                result_blocked / block_window if block_window > 0 else 0
-            )
+            for idx, t in tqdm(enumerate(self.timestamps), desc="Computing blocking probability"):
+                # Use a slice of the timestamp range to find blocked times
+                test_blocked = sum(1 for time in range(max(0, t - block_window), t) if time in test_blocked_times_set)
+                result_blocked = sum(1 for time in range(max(0, t - block_window), t) if time in result_blocked_times_set)
 
-        ax8.plot(self.timestamps, test_blocks, label="Test queue", color=color_test)
-        ax8.plot(
-            self.timestamps, result_blocks, label="Result queue", color=color_result
-        )
+                test_blocks[idx] = test_blocked / block_window
+                result_blocks[idx] = result_blocked / block_window
+        else:
+            # Edge case: If block_window is 0, set blocking probabilities to 0
+            test_blocks = np.zeros(len(self.timestamps))
+            result_blocks = np.zeros(len(self.timestamps))
+
+        ax8.plot(self.timestamps, test_blocks, label="Test q.", color=color_test)
+        ax8.plot(self.timestamps, result_blocks, label="Result q.", color=color_result)
         ax8.set_title("Blocking probability over time")
         ax8.set_xlabel("Time")
         ax8.set_ylabel("Blocking probability")
         ax8.grid(True, alpha=0.3)
         ax8.set_ylim(0, 1.1)
-        ax8.legend(loc="upper left")
+        ax8.legend(loc="upper right")
 
         # 9
         ax9 = fig.add_subplot(gs[4, 1])
