@@ -60,7 +60,7 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
             # On débloque le serveur pour tb/2 temps
             self.is_blocked = False
             print(f"Moulinette unblocked for ING population at {self.env.now}")
-            yield self.env.timeout(self.tb / 2)
+            yield self.env.timeout(self.tb // 2)
 
     def handle_commit(self, user: Utilisateur):
         """
