@@ -276,6 +276,8 @@ class QueueMetrics:
         test_sojourn_times = []
         result_sojourn_times = []
         total_sojourn_times = []
+        total_prepa_sojourn_times = []
+        total_ing_sojourn_times = []
 
         for user_id in tqdm(self.test_queue_entry_times, desc="Computing sojourn times distribution"):
             if user_id in self.test_queue_exit_times:
@@ -300,7 +302,13 @@ class QueueMetrics:
                     self.result_queue_exit_times[user_id]
                     - self.test_queue_entry_times[user_id]
                 )
-                total_sojourn_times.append(total_time)
+
+                if 'PREPA' in user_id[:5]:
+                    total_prepa_sojourn_times.append(total_time)
+                elif 'ING' in user_id[:3]:
+                    total_ing_sojourn_times.append(total_time)
+                else:
+                    total_sojourn_times.append(total_time)
 
         # 4
         ax4.hist(
@@ -318,7 +326,17 @@ class QueueMetrics:
 
         # 5
         ax5 = fig.add_subplot(gs[2, 1])
-        ax5.hist(total_sojourn_times, color="#3498db", alpha=0.7, bins=60)
+        if len(total_sojourn_times) != 0:
+            ax5.hist(total_sojourn_times, color="#3498db", alpha=0.7, bins=60)
+        else:
+            ax5.hist(
+                [total_prepa_sojourn_times, total_ing_sojourn_times],
+                label=["PREPA", "ING"],
+                color=["#53917E", "#715B64"],
+                bins=30
+            )
+            ax5.legend(loc="upper right")
+
         ax5.set_title("Distribution of total system time")
         ax5.set_xlabel("Total time spent in system")
         ax5.set_ylabel("Number of users")
@@ -405,13 +423,13 @@ class QueueMetrics:
                     timestamps_after_warmup[window_size:],
                     completed_rates,
                     label="Completed throughput",
-                    color="#2ecc71"
+                    color="#177E89"
                 )
                 ax7.plot(
                     timestamps_after_warmup[window_size:],
                     attempted_rates,
                     label="Attempted throughput",
-                    color="#e74c3c",
+                    color="#FFC857",
                     linestyle="--"
                 )
 
@@ -501,7 +519,7 @@ class QueueMetrics:
         ax10.set_xlabel("Time")
         ax10.set_ylabel("Proportion of total load")
         ax10.grid(True, alpha=0.3)
-        ax10.legend()
+        ax10.legend(loc="upper right")
 
         fig.suptitle("Moulinette queue system metrics", fontsize=16, y=0.95)
         plt.savefig(save_filename, dpi=300, bbox_inches="tight")

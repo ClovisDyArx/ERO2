@@ -75,13 +75,13 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
                     or self.users_commit_time[user][0] <= self.env.now - 60
                 ):
                     commit = Commit(user, self.env.now, exo, last_chance_commit)
-                    user_id = f"{user.name}_{self.env.now}_{exo}"
+
                     if self.block_option and user.promo == "ING" and self.is_blocked:
                         print(f"{commit} : blocked by ING regulation.")
                         yield self.env.timeout(random.randint(1, 3))
                     else:
                         exo = self.users_exo[user]
-                        user_id = f"{user.name}_{self.env.now}_{exo}"
+                        user_id = f"{user.promo}_{user.name}_{self.env.now}_{exo}"
 
                         # si plus de place dans la FIFO de test, refus
                         if len(self.test_queue.items) >= self.ks:
