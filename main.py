@@ -71,19 +71,34 @@ def launch_test(
 if __name__ == "__main__":
     user_list = create_user_list(generate_users_names(100), promo_ratio=0.5)
 
-    # print("\n\n=== Waterfall Moulinette (Infinite Queues) ===\n")
-    # wm_inf = WaterfallMoulinetteInfinite(K=2, process_time=2, result_time=2)
-    # launch_test(wm_inf, user_list, until=None, save_filename="output/waterfall_moulinette_infinite.png")
+    print("\n\n=== Waterfall Moulinette (Infinite Queues) ===\n")
+    wm_inf = WaterfallMoulinetteInfinite(K=2, process_time=2, result_time=2)
+    launch_test(
+        wm_inf,
+        user_list,
+        until=None,
+        save_filename="output/waterfall_moulinette_infinite.png",
+    )
 
-    # print("\n\n=== Waterfall Moulinette (Finite Queues) ===\n")
-    # wm_fin = WaterfallMoulinetteFinite(K=2, ks=2, kf=3, process_time=3, result_time=3)
-    # launch_test(wm_fin, user_list, until=None, save_filename="output/waterfall_moulinette_finite.png")
+    print("\n\n=== Waterfall Moulinette (Finite Queues) ===\n")
+    wm_fin = WaterfallMoulinetteFinite(K=2, ks=2, kf=3, process_time=3, result_time=3)
+    launch_test(
+        wm_fin,
+        user_list,
+        until=None,
+        save_filename="output/waterfall_moulinette_finite.png",
+    )
 
-    # print("\n\n=== Waterfall Moulinette (Finite Queues with Backup) ===\n")
-    # wm_fin_back = WaterfallMoulinetteFiniteBackup(
-    #     K=5, process_time=3, result_time=3, ks=10, kf=20
-    # )
-    # launch_test(wm_fin_back, user_list, until=None, save_filename="output/waterfall_moulinette_finite_backup_metrics.png")
+    print("\n\n=== Waterfall Moulinette (Finite Queues with Backup) ===\n")
+    wm_fin_back = WaterfallMoulinetteFiniteBackup(
+        K=5, process_time=3, result_time=3, ks=10, kf=20
+    )
+    launch_test(
+        wm_fin_back,
+        user_list,
+        until=None,
+        save_filename="output/waterfall_moulinette_finite_backup_metrics.png",
+    )
 
     print("\n\n=== Channels & Dams Moulinette ===\n")
     cd = ChannelsAndDams(

@@ -46,8 +46,12 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
         Implémentation du "barrage" de régulation pour la population ING.
         """
         while True:
-            if all(value == -1 for value in self.users_commit_time.values()):
+            if (
+                all(value >= self.nb_exos - 1 for value in self.users_exo.values())
+                and len(self.backup_storage.items) == 0
+            ):
                 break
+
             # On bloque le serveur pour tb temps
             self.is_blocked = True
             print(f"Moulinette blocked for ING population at {self.env.now}")
@@ -65,22 +69,26 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
         :param user: Utilisateur.
         """
 
-        for exo in range(self.nb_exos):
+        while self.users_exo[user.name] < self.nb_exos:
             last_chance_commit = None
 
             while True:
+                if self.users_exo[user.name] >= self.nb_exos:
+                    break
+
                 # push autorisé si dans la limite de tag
                 if (
-                    len(self.users_commit_time[user]) < self.tag_limit
-                    or self.users_commit_time[user][0] <= self.env.now - 60
+                    len(self.users_commit_time[user.name]) < self.tag_limit
+                    or self.users_commit_time[user.name][0] <= self.env.now - 60
                 ):
+                    exo = self.users_exo[user.name]
                     commit = Commit(user, self.env.now, exo, last_chance_commit)
 
                     if self.block_option and user.promo == "ING" and self.is_blocked:
                         print(f"{commit} : blocked by ING regulation.")
                         yield self.env.timeout(random.randint(1, 3))
                     else:
-                        exo = self.users_exo[user]
+                        exo = self.users_exo[user.name]
                         user_id = f"{user.promo}_{user.name}_{self.env.now}_{exo}"
 
                         # si plus de place dans la FIFO de test, refus
@@ -92,8 +100,8 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
                             continue
 
                         # pop le commit le plus vieux
-                        if len(self.users_commit_time[user]) == self.tag_limit:
-                            self.users_commit_time[user].pop(0)
+                        if len(self.users_commit_time[user.name]) == self.tag_limit:
+                            self.users_commit_time[user.name].pop(0)
 
                         # test queue metrics
                         self.metrics.record_test_queue_entry(user_id, self.env.now)
@@ -154,10 +162,10 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
                                     min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05
                                 ),
                             )
-                            self.users_commit_time[user].append(self.env.now)
+                            self.users_commit_time[user.name].append(self.env.now)
                             yield self.env.timeout(random.randint(3, 15))
 
-            self.users_exo[user] += 1
-            self.users_commit_time[user] = []
+            self.users_exo[user.name] += 1
+            self.users_commit_time[user.name] = []
 
-        self.users_commit_time[user] = -1
+        self.users_commit_time[user.name] = -1

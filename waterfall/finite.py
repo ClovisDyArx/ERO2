@@ -50,15 +50,19 @@ class WaterfallMoulinetteFinite(WaterfallMoulinetteInfinite):
         :param user: Utilisateur.
         """
 
-        for exo in range(self.nb_exos):
+        while self.users_exo[user.name] < self.nb_exos:
             last_chance_commit = None
 
             while True:
+                if self.users_exo[user.name] >= self.nb_exos:
+                    break
+
                 # push autorisé si dans la limite de tag
                 if (
-                    len(self.users_commit_time[user]) < self.tag_limit
-                    or self.users_commit_time[user][0] <= self.env.now - 60
+                    len(self.users_commit_time[user.name]) < self.tag_limit
+                    or self.users_commit_time[user.name][0] <= self.env.now - 60
                 ):
+                    exo = self.users_exo[user.name]
                     commit = Commit(user, self.env.now, exo, last_chance_commit)
                     user_id = f"{user.name}_{self.env.now}_{exo}"
 
@@ -71,8 +75,8 @@ class WaterfallMoulinetteFinite(WaterfallMoulinetteInfinite):
                         continue
 
                     # pop le commit le plus vieux
-                    if len(self.users_commit_time[user]) == self.tag_limit:
-                        self.users_commit_time[user].pop(0)
+                    if len(self.users_commit_time[user.name]) == self.tag_limit:
+                        self.users_commit_time[user.name].pop(0)
 
                     # test queue metrics
                     self.metrics.record_test_queue_entry(user_id, self.env.now)
@@ -126,9 +130,10 @@ class WaterfallMoulinetteFinite(WaterfallMoulinetteInfinite):
                             commit.chance_to_pass
                             + max(min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05),
                         )
-                        self.users_commit_time[user].append(self.env.now)
+                        self.users_commit_time[user.name].append(self.env.now)
                         yield self.env.timeout(random.randint(3, 15))
 
-            self.users_commit_time[user] = []
+            self.users_exo[user.name] += 1
+            self.users_commit_time[user.name] = []
 
-        self.users_commit_time[user] = -1
+        self.users_commit_time[user.name] = -1

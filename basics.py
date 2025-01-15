@@ -79,6 +79,7 @@ class Moulinette:
         self.process_time = process_time
         self.result_time = result_time
         self.nb_exos = nb_exos
+        self.users = []
         self.users_commit_time = {}  # user -> [timestep, ...] (maxlen tag_limit)
         self.users_exo = {}
         self.backup_storage = simpy.FilterStore(self.env)
@@ -90,7 +91,7 @@ class Moulinette:
         """
         while True:
             if (
-                all(value == -1 for value in self.users_commit_time.values())
+                all(value >= self.nb_exos - 1 for value in self.users_exo.values())
                 and len(self.backup_storage.items) == 0
             ):
                 break
@@ -135,8 +136,9 @@ class Moulinette:
         """
         if user is None:
             user = Utilisateur()
-        self.users_commit_time[user] = []
-        self.users_exo[user] = 0
+        self.users.append(user)
+        self.users_commit_time[user.name] = []
+        self.users_exo[user.name] = 0
 
     def start_simulation(self, until: int | None, save_filename: str = "metrics.png"):
         """
@@ -146,7 +148,7 @@ class Moulinette:
         """
         self.env.process(self.collect_metrics())
 
-        for user in self.users_commit_time.keys():
+        for user in self.users:
             self.env.process(self.handle_commit(user))
 
         self.env.run(until=until)
