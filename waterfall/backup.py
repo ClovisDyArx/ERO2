@@ -60,14 +60,14 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
         if random.random() <= commit.chance_to_pass:
             print(f"{commit} : commit passed for exo {commit.exo} ! [BACKUP]")
 
-            if not all(value == -1 for value in self.users_commit_time.values()):
-                self.users_exo[commit.user.name] += 1
+            if commit.exo == commit.user.current_exo:
+                commit.user.current_exo += 1
                 self.users_commit_time[commit.user.name] = []
 
     def free_backup(self):
         while True:
             if (
-                all(value >= self.nb_exos - 1 for value in self.users_exo.values())
+                all(user.current_exo > self.nb_exos for user in self.users)
                 and len(self.backup_storage.items) == 0
             ):
                 break
@@ -76,15 +76,7 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
 
             if available_space > 0 and len(self.backup_storage.items) > 0:
                 for _ in range(min(available_space, len(self.backup_storage.items))):
-                    c, user_id = self.backup_storage.get().value
-                    commit = c
-                    commit.date = self.env.now
-
-                    if commit.exo != self.users_exo[commit.user.name] and not all(
-                        value == -1 for value in self.users_commit_time.values()
-                    ):
-                        continue
-
+                    commit, user_id = self.backup_storage.get().value
                     self.env.process(self._process_backup_result(commit, user_id))
 
             yield self.env.timeout(1)
@@ -95,96 +87,88 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
 
         :param user: Utilisateur.
         """
+        last_chance_commit = None
 
-        while self.users_exo[user.name] < self.nb_exos:
-            last_chance_commit = None
+        while True:
+            if user.current_exo > self.nb_exos:
+                break
 
-            while True:
-                if self.users_exo[user.name] >= self.nb_exos:
+            # push autorisé si dans la limite de tag
+            current_time = self.env.now
+            if len(self.users_commit_time[user.name]) >= self.tag_limit:
+                if self.users_commit_time[user.name][0] > current_time - 60:
+                    yield self.env.timeout(1)
+                    continue
+                self.users_commit_time[user.name].pop(0)
+
+            exo = user.current_exo
+            commit = Commit(user, current_time, exo, last_chance_commit)
+            user_id = f"{user.name}_{current_time}_{exo}"
+
+            # si plus de place dans la FIFO de test, refus
+            if len(self.test_queue.items) >= self.ks:
+                self.metrics.record_test_queue_blocked(self.env.now)
+                print(f"{commit} : refused at test queue (FULL).")
+                yield self.env.timeout(random.randint(4, 10))
+                continue
+
+            # métriques queue test
+            self.metrics.record_test_queue_entry(user_id, current_time)
+            print(f"{commit} : enters the test queue.")
+
+            # fifo serveur test
+            with self.test_server.request() as test_request:
+                yield test_request
+                print(f"{commit} : starts testing.")
+                yield self.env.timeout(self.process_time)
+                print(f"{commit} : finishes testing.")
+
+            self.metrics.record_test_queue_exit(user_id, self.env.now)
+
+            # si plus de place dans la FIFO d'envoi, refus
+            if len(self.result_queue.items) >= self.kf:
+                self.metrics.record_result_queue_blocked(self.env.now)
+                print(
+                    f"{commit} : refused at result queue (FULL). The result is backed up."
+                )
+                # on ajoute le commit dans le backup
+                self.backup_storage.put((commit, user_id))
+
+                yield self.env.timeout(random.randint(4, 10))
+                continue
+
+            # métriques queue résultat
+            self.metrics.record_result_queue_entry(user_id, self.env.now)
+            print(f"{commit} : enters the result queue.")
+
+            # fifo serveur d'envoi
+            with self.result_server.request() as result_request:
+                yield result_request
+                print(f"{commit} : starts result processing.")
+                yield self.env.timeout(self.result_time)
+                print(f"{commit} : finishes result processing.")
+
+            self.metrics.record_result_queue_exit(user_id, self.env.now)
+
+            # si le commit est bon
+            if random.random() <= commit.chance_to_pass:
+                print(f"{commit} : commit passed for exo {exo} !")
+                user.current_exo += 1
+                self.users_commit_time[user.name] = []
+                last_chance_commit = None
+
+                if user.current_exo > self.nb_exos:
                     break
 
-                # push autorisé si dans la limite de tag
-                if (
-                    len(self.users_commit_time[user.name]) < self.tag_limit
-                    or self.users_commit_time[user.name][0] <= self.env.now - 60
-                ):
-                    exo = self.users_exo[user.name]
-                    commit = Commit(user, self.env.now, exo, last_chance_commit)
-                    user_id = f"{user.name}_{self.env.now}_{exo}"
-
-                    # si plus de place dans la FIFO de test, refus
-                    if len(self.test_queue.items) >= self.ks:
-                        self.metrics.record_test_queue_blocked(self.env.now)
-                        print(f"{commit} : refused at test queue (FULL).")
-                        self.refusals_test += 1
-                        yield self.env.timeout(random.randint(4, 10))
-                        continue
-
-                    # pop le commit le plus vieux
-                    if len(self.users_commit_time[user.name]) == self.tag_limit:
-                        self.users_commit_time[user.name].pop(0)
-
-                    # test queue metrics
-                    self.metrics.record_test_queue_entry(user_id, self.env.now)
-
-                    # fifo serveur de test
-                    print(f"{commit} : enters the test queue.")
-                    yield self.test_queue.put(user)
-                    with self.test_server.request() as request:
-                        yield request
-                        print(f"{commit} : starts testing.")
-                        yield self.env.timeout(self.process_time)
-                        print(f"{commit} : finishes testing.")
-                        yield self.test_queue.get(lambda x: x == user)
-
-                    self.metrics.record_test_queue_exit(user_id, self.env.now)
-
-                    # si plus de place dans la FIFO d'envoi, refus
-                    if len(self.result_queue.items) >= self.kf:
-                        self.metrics.record_result_queue_blocked(self.env.now)
-                        print(
-                            f"{commit} : refused at result queue (FULL). The result is backed up."
-                        )
-                        # on ajoute le commit dans le backup
-                        self.backup_storage.put((commit, user_id))
-
-                        self.refusals_result += 1
-                        yield self.env.timeout(random.randint(4, 10))
-                        continue
-
-                    # métriques queue résultat
-                    self.metrics.record_result_queue_entry(user_id, self.env.now)
-
-                    # fifo serveur d'envoi
-                    print(f"{commit} : enters the result queue.")
-                    yield self.result_queue.put(user)
-                    with self.result_server.request() as request:
-                        yield request
-                        print(f"{commit} : starts result processing.")
-                        yield self.env.timeout(self.result_time)
-                        print(f"{commit} : finishes result processing.")
-                        yield self.result_queue.get(lambda x: x == user)
-
-                    self.metrics.record_result_queue_exit(user_id, self.env.now)
-
-                    # si le commit est bon
-                    if random.random() <= commit.chance_to_pass:
-                        print(f"{commit} : commit passed for exo {exo} !")
-                        yield self.env.timeout(random.randint(20, 120))
-                        break
-                    else:
-                        print(
-                            f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit."
-                        )
-                        last_chance_commit = min(
-                            1,
-                            commit.chance_to_pass
-                            + max(min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05),
-                        )
-                        self.users_commit_time[user.name].append(self.env.now)
-                        yield self.env.timeout(random.randint(3, 15))
-
-            self.users_exo[user.name] += 1
-            self.users_commit_time[user.name] = []
-
-        self.users_commit_time[user.name] = -1
+                yield self.env.timeout(random.randint(5, 15))
+            else:
+                print(
+                    f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit."
+                )
+                last_chance_commit = min(
+                    1,
+                    commit.chance_to_pass
+                    + max(min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05),
+                )
+                self.users_commit_time[user.name].append(current_time)
+                yield self.env.timeout(random.randint(3, 15))

@@ -1,3 +1,4 @@
+from typing import List
 import simpy
 import random
 import string
@@ -20,6 +21,7 @@ class Utilisateur:
     ):
         self.name = name
         self.promo = promo
+        self.current_exo = 1
         self.intelligence = max(min(random.gauss(mu=0.6, sigma=0.075), 0.75), 0.2)
 
     def __str__(self):
@@ -79,9 +81,8 @@ class Moulinette:
         self.process_time = process_time
         self.result_time = result_time
         self.nb_exos = nb_exos
-        self.users = []
+        self.users: List[Utilisateur] = []
         self.users_commit_time = {}  # user -> [timestep, ...] (maxlen tag_limit)
-        self.users_exo = {}
         self.backup_storage = simpy.FilterStore(self.env)
         self.metrics = QueueMetrics()
 
@@ -91,7 +92,7 @@ class Moulinette:
         """
         while True:
             if (
-                all(value >= self.nb_exos - 1 for value in self.users_exo.values())
+                all(user.current_exo > self.nb_exos for user in self.users)
                 and len(self.backup_storage.items) == 0
             ):
                 break
@@ -138,7 +139,6 @@ class Moulinette:
             user = Utilisateur()
         self.users.append(user)
         self.users_commit_time[user.name] = []
-        self.users_exo[user.name] = 0
 
     def start_simulation(self, until: int | None, save_filename: str = "metrics.png"):
         """
@@ -151,7 +151,7 @@ class Moulinette:
         for user in self.users:
             self.env.process(self.handle_commit(user))
 
-        self.env.run(until=until)
+        self.env.run(until=10000)
 
         metrics = self.metrics.calculate_metrics()
         print("\nSimulation Metrics:")
