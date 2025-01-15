@@ -78,8 +78,7 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
 
             if available_space > 0 and len(self.backup_storage.items) > 0:
                 for _ in range(min(available_space, len(self.backup_storage.items))):
-                    backup_item = self.backup_storage.get().value
-                    c, user_id = backup_item
+                    c, user_id = self.backup_storage.get().value
                     commit = c
                     commit.date = self.env.now
 

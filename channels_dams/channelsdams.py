@@ -46,6 +46,8 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
         Implémentation du "barrage" de régulation pour la population ING.
         """
         while True:
+            if all(value == -1 for value in self.users_commit_time.values()):
+                break
             # On bloque le serveur pour tb temps
             self.is_blocked = True
             print(f"Moulinette blocked for ING population at {self.env.now}")
@@ -73,6 +75,7 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
                     or self.users_commit_time[user][0] <= self.env.now - 60
                 ):
                     commit = Commit(user, self.env.now, exo, last_chance_commit)
+                    user_id = f"{user.name}_{self.env.now}_{exo}"
                     if self.block_option and user.promo == "ING" and self.is_blocked:
                         print(f"{commit} : blocked by ING regulation.")
                         yield self.env.timeout(random.randint(1, 3))
@@ -114,7 +117,7 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
                                 f"{commit} : refused at result queue (FULL). The result is backed up."
                             )
                             # on ajoute le commit dans le backup
-                            self.backup_storage.put(commit)
+                            self.backup_storage.put((commit, user_id))
 
                             self.refusals_result += 1
                             yield self.env.timeout(random.randint(4, 10))
