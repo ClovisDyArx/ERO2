@@ -89,6 +89,8 @@ class WaterfallMoulinetteInfinite(Moulinette):
                     # si le commit est bon
                     if random.random() <= commit.chance_to_pass:
                         print(f"{commit} : commit passed for exo {exo} !")
+                        self.users_exo[user.name] += 1
+                        self.users_commit_time[user.name] = []
                         yield self.env.timeout(random.randint(5, 15))
                         break
                     else:
@@ -103,7 +105,5 @@ class WaterfallMoulinetteInfinite(Moulinette):
                         self.users_commit_time[user.name].append(self.env.now)
                         yield self.env.timeout(random.randint(3, 15))
 
-            self.users_exo[user.name] += 1
-            self.users_commit_time[user.name] = []
 
-        self.users_commit_time[user.name] = -1
+
