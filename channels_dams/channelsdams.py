@@ -76,7 +76,7 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
 
             # check si ING et blocage actif
             if self.block_option and user.promo == "ING" and self.is_blocked:
-                print(f"{commit} : blocked by ING regulation.")
+                print(f"{user} : blocked by ING regulation.")
                 yield self.env.timeout(random.randint(1, 3))
                 continue
 
@@ -101,14 +101,16 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
 
             # métriques queue test
             self.metrics.record_test_queue_entry(user_id, current_time)
-            print(f"{commit} : enters the test queue.")
 
             # fifo serveur test
+            print(f"{commit} : enters the test queue.")
+            yield self.test_queue.put(user)
             with self.test_server.request() as test_request:
                 yield test_request
                 print(f"{commit} : starts testing.")
                 yield self.env.timeout(self.process_time)
                 print(f"{commit} : finishes testing.")
+                yield self.test_queue.get(lambda x: x == user)
 
             self.metrics.record_test_queue_exit(user_id, self.env.now)
 
@@ -126,14 +128,16 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
 
             # métriques queue résultat
             self.metrics.record_result_queue_entry(user_id, self.env.now)
-            print(f"{commit} : enters the result queue.")
 
             # fifo serveur d'envoi
+            print(f"{commit} : enters the result queue.")
+            yield self.result_queue.put(user)
             with self.result_server.request() as result_request:
                 yield result_request
                 print(f"{commit} : starts result processing.")
                 yield self.env.timeout(self.result_time)
                 print(f"{commit} : finishes result processing.")
+                yield self.result_queue.get(lambda x: x == user)
 
             self.metrics.record_result_queue_exit(user_id, self.env.now)
 
