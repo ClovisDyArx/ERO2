@@ -42,8 +42,8 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
         )
 
     def _process_backup_result(self, commit: Commit, user_id: str):
-        while len(self.result_queue.items) >= self.kf:
-            yield self.env.timeout(1)
+        #while len(self.result_queue.items) >= self.kf:
+        #    yield self.env.timeout(1)
 
         self.metrics.record_result_queue_entry(user_id, self.env.now)
 
@@ -73,7 +73,7 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
             ):
                 break
 
-            while (len(self.result_queue.items) + self.result_server.count) >= self.kf:
+            while (len(self.result_queue.items)) >= self.kf:
                 yield self.env.timeout(1)
 
             if len(self.backup_storage.items) > 0:

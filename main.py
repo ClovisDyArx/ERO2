@@ -139,16 +139,16 @@ if __name__ == "__main__":
 
     config_finite = {
         "small_queues": {
-            "K": 3,
+            "K": 4,
             "process_time": 2,
             "result_time": 1,
             "tag_limit": 5,
             "nb_exos": 10,
-            "ks": 10,
+            "ks": 20,
             "kf": 5,
         },
         "small_queues_equal": {
-            "K": 3,
+            "K": 4,
             "process_time": 2,
             "result_time": 1,
             "tag_limit": 5,
@@ -157,7 +157,7 @@ if __name__ == "__main__":
             "kf": 10,
         },
         "medium_queues": {
-            "K": 3,
+            "K": 4,
             "process_time": 2,
             "result_time": 1,
             "tag_limit": 5,
@@ -166,7 +166,16 @@ if __name__ == "__main__":
             "kf": 10,
         },
         "large_queues": {
-            "K": 3,
+            "K": 4,
+            "process_time": 2,
+            "result_time": 1,
+            "tag_limit": 5,
+            "nb_exos": 10,
+            "ks": 40,
+            "kf": 20,
+        },
+        "large_queue_high_capacity": {
+            "K": 6,
             "process_time": 2,
             "result_time": 1,
             "tag_limit": 5,
@@ -244,7 +253,7 @@ if __name__ == "__main__":
             "block_option": True,
         },
         "no_regulation_fast": {
-            "K": 4,
+            "K": 5,
             "process_time": 2,
             "result_time": 1,
             "ks": 25,
@@ -253,7 +262,7 @@ if __name__ == "__main__":
             "block_option": False,
         },
         "soft_regulation_fast": {
-            "K": 4,
+            "K": 5,
             "process_time": 2,
             "result_time": 1,
             "ks": 25,
