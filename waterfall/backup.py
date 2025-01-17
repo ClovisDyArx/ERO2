@@ -71,12 +71,13 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
             ):
                 break
 
-            available_space = self.kf - len(self.result_queue.items)
+            while (len(self.result_queue.items) + self.result_server.count) >= self.kf:
+                yield self.env.timeout(1)
 
-            if available_space > 0 and len(self.backup_storage.items) > 0:
-                for _ in range(min(available_space, len(self.backup_storage.items))):
-                    commit, user_id = self.backup_storage.get().value
-                    self.env.process(self._process_backup_result(commit, user_id))
+            if len(self.backup_storage.items) > 0:
+                commit, user_id = self.backup_storage.get().value
+                self.env.process(self._process_backup_result(commit, user_id))
+
 
             yield self.env.timeout(1)
 
@@ -86,17 +87,16 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
 
         :param user: Utilisateur.
         """
+        minute_unit = 2
         last_chance_commit = None
 
-        while True:
-            if user.current_exo > self.nb_exos:
-                break
+        while user.current_exo <= self.nb_exos:
 
             # push autorisé si dans la limite de tag
             current_time = self.env.now
             if len(self.users_commit_time[user.name]) >= self.tag_limit:
-                if self.users_commit_time[user.name][0] > current_time - 60:
-                    yield self.env.timeout(1)
+                if self.users_commit_time[user.name][0] > current_time - 60 * minute_unit:
+                    yield self.env.timeout(minute_unit)
                     continue
                 self.users_commit_time[user.name].pop(0)
 
@@ -108,7 +108,7 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
             if len(self.test_queue.items) >= self.ks:
                 self.metrics.record_test_queue_blocked(self.env.now)
                 print(f"{commit} : refused at test queue (FULL).")
-                yield self.env.timeout(random.randint(4, 10))
+                yield self.env.timeout(random.randint(4, 10) * minute_unit)
                 continue
 
             # métriques queue test
@@ -135,7 +135,7 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
                 # on ajoute le commit dans le backup
                 self.backup_storage.put((commit, user_id))
 
-                yield self.env.timeout(random.randint(4, 10))
+                yield self.env.timeout(random.randint(4, 10) * minute_unit)
                 continue
 
             # métriques queue résultat
@@ -163,15 +163,14 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
                 if user.current_exo > self.nb_exos:
                     break
 
-                yield self.env.timeout(random.randint(5, 15))
+                wating_before_next = round(max(random.gauss(mu=45, sigma=15), 1))
+                yield self.env.timeout(wating_before_next * minute_unit)
             else:
-                print(
-                    f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit."
-                )
-                last_chance_commit = min(
-                    1,
-                    commit.chance_to_pass
-                    + max(min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05),
-                )
+                print(f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit.")
+                more_chance_to_pass = max(min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05)
+                last_chance_commit = min(commit.chance_to_pass + more_chance_to_pass, 1)
+
                 self.users_commit_time[user.name].append(current_time)
-                yield self.env.timeout(random.randint(3, 15))
+                wating_before_next = round(max(random.gauss(mu=15, sigma=5), 1))
+
+                yield self.env.timeout(wating_before_next * minute_unit)
