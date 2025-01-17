@@ -70,6 +70,8 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
         """
         minute_unit = 2
         last_chance_commit = None
+        # modéliser l'occupation plus longue de la moulinette par les prépas
+        coeff = 2 if user.promo == "PREPA" else 1
 
         while user.current_exo <= self.nb_exos:
             # check si ING et blocage actif
@@ -109,7 +111,7 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
             with self.test_server.request() as test_request:
                 yield test_request
                 print(f"{commit} : starts testing.")
-                yield self.env.timeout(self.process_time)
+                yield self.env.timeout(self.process_time * coeff)
                 print(f"{commit} : finishes testing.")
                 yield self.test_queue.get(lambda x: x == user)
 

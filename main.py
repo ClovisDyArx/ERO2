@@ -1,4 +1,6 @@
 import random
+import sys
+import os
 
 from basics import Utilisateur
 from waterfall.infinite import WaterfallMoulinetteInfinite
@@ -68,16 +70,28 @@ def launch_test(
     moulinette.start_simulation(until=until, save_filename=save_filename)
 
 
-def exec_simulations(nb_user: int, module: Callable, configs: dict):
+def exec_simulations(
+    nb_user: int, module: Callable, configs: dict, promo_ratio: float = 0.7
+):
     for key in configs.keys():
-        user_list = create_user_list(generate_users_names(nb_user))
+        user_list = create_user_list(generate_users_names(nb_user), promo_ratio)
         m_config = module(**configs[key])
-        launch_test(
-            m_config,
-            user_list,
-            until=None,
-            save_filename=f"output/{m_config.__class__.__name__}_U{len(user_list)}_{key}.png",
-        )
+        if not os.path.exists(os.path.join("output", m_config.__class__.__name__)):
+            os.mkdir(os.path.join("output", m_config.__class__.__name__))
+            os.mkdir(os.path.join("output", m_config.__class__.__name__, "files"))
+            os.mkdir(os.path.join("output", m_config.__class__.__name__, "graphs"))
+
+        with open(
+            f"output/{m_config.__class__.__name__}/files/U{len(user_list)}_{key}.txt",
+            "w",
+        ) as sys.stdout:
+            launch_test(
+                m_config,
+                user_list,
+                until=None,
+                save_filename=f"output/{m_config.__class__.__name__}/graphs/U{len(user_list)}_{key}.png",
+            )
+        sys.stdout = sys.__stdout__
 
 
 if __name__ == "__main__":
@@ -89,11 +103,11 @@ if __name__ == "__main__":
 
     config_infinite = {
         "base": {
-            "K": 3,  # Number of test servers
-            "process_time": 2,  # Test processing time
-            "result_time": 1,  # Result processing time
-            "tag_limit": 5,  # Max commits per hour
-            "nb_exos": 10,  # Number of exercises
+            "K": 3,
+            "process_time": 2,
+            "result_time": 1,
+            "tag_limit": 5,
+            "nb_exos": 10,
         },
         "high_capacity": {
             "K": 6,
@@ -104,11 +118,18 @@ if __name__ == "__main__":
         },
         "optimized": {
             "K": 4,
-            "process_time": 1,  # Faster processing
+            "process_time": 1,
             "result_time": 1,
-            "tag_limit": 7,  # More commits allowed
+            "tag_limit": 7,
             "nb_exos": 10,
-        }
+        },
+        "low_capacity": {
+            "K": 1,
+            "process_time": 2,
+            "result_time": 1,
+            "tag_limit": 5,
+            "nb_exos": 10,
+        },
     }
 
     print("\n\n=== Waterfall Moulinette (Infinite Queues) ===\n")
@@ -123,8 +144,17 @@ if __name__ == "__main__":
             "result_time": 1,
             "tag_limit": 5,
             "nb_exos": 10,
-            "ks": 10,  # Small test queue
-            "kf": 5,   # Small result queue
+            "ks": 10,
+            "kf": 5,
+        },
+        "small_queues_equal": {
+            "K": 3,
+            "process_time": 2,
+            "result_time": 1,
+            "tag_limit": 5,
+            "nb_exos": 10,
+            "ks": 10,
+            "kf": 10,
         },
         "medium_queues": {
             "K": 3,
@@ -132,8 +162,8 @@ if __name__ == "__main__":
             "result_time": 1,
             "tag_limit": 5,
             "nb_exos": 10,
-            "ks": 20,  # Medium test queue
-            "kf": 10,  # Medium result queue
+            "ks": 20,
+            "kf": 10,
         },
         "large_queues": {
             "K": 3,
@@ -141,9 +171,9 @@ if __name__ == "__main__":
             "result_time": 1,
             "tag_limit": 5,
             "nb_exos": 10,
-            "ks": 40,  # Large test queue
-            "kf": 20,  # Large result queue
-        }
+            "ks": 40,
+            "kf": 20,
+        },
     }
 
     print("\n\n=== Waterfall Moulinette (Finite Queues) ===\n")
@@ -160,6 +190,15 @@ if __name__ == "__main__":
             "nb_exos": 10,
             "ks": 15,
             "kf": 8,
+        },
+        "conservative_equal": {
+            "K": 3,
+            "process_time": 2,
+            "result_time": 1,
+            "tag_limit": 5,
+            "nb_exos": 10,
+            "ks": 15,
+            "kf": 15,
         },
         "balanced": {
             "K": 4,
@@ -178,7 +217,7 @@ if __name__ == "__main__":
             "nb_exos": 10,
             "ks": 35,
             "kf": 15,
-        }
+        },
     }
     print("\n\n=== Waterfall Moulinette (Finite Queues with Backup) ===\n")
     for load_type, users in user_lists.items():
@@ -186,33 +225,42 @@ if __name__ == "__main__":
         exec_simulations(users, WaterfallMoulinetteFiniteBackup, config_finite_backup)
 
     config_channels_dams = {
-        "strict_regulation": {
+        "no_regulation_balanced": {
             "K": 3,
             "process_time": 2,
             "result_time": 1,
             "ks": 15,
             "kf": 8,
-            "tb": 10,  # Long blocking time
+            "tb": 10,
+            "block_option": False,
+        },
+        "strict_regulation_balanced": {
+            "K": 3,
+            "process_time": 2,
+            "result_time": 1,
+            "ks": 15,
+            "kf": 8,
+            "tb": 10,
             "block_option": True,
         },
-        "moderate_regulation": {
+        "no_regulation_fast": {
             "K": 4,
             "process_time": 2,
             "result_time": 1,
             "ks": 25,
             "kf": 12,
-            "tb": 5,   # Medium blocking time
+            "tb": 6,
+            "block_option": False,
+        },
+        "soft_regulation_fast": {
+            "K": 4,
+            "process_time": 2,
+            "result_time": 1,
+            "ks": 25,
+            "kf": 12,
+            "tb": 6,
             "block_option": True,
         },
-        "light_regulation": {
-            "K": 5,
-            "process_time": 1,
-            "result_time": 1,
-            "ks": 35,
-            "kf": 15,
-            "tb": 3,   # Short blocking time
-            "block_option": True,
-        }
     }
     print("\n\n=== Channels & Dams Moulinette ===\n")
     for load_type, users in user_lists.items():
