@@ -1,6 +1,7 @@
 import random
 import sys
 import os
+import numpy as np
 
 from basics import Utilisateur
 from waterfall.infinite import WaterfallMoulinetteInfinite
@@ -93,8 +94,19 @@ def exec_simulations(
             )
         sys.stdout = sys.__stdout__
 
+def set_random_seed(seed: int = 42):
+    """
+    Set random seeds for reproducibility across all random number generators used in the simulation.
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    return seed
+
+
 
 if __name__ == "__main__":
+    used_seed = set_random_seed(42)
+
     user_lists = {
         "normal": 65,
         "high_load": 130,
