@@ -37,11 +37,14 @@ class WaterfallMoulinetteInfinite(Moulinette):
 
         :param user: Utilisateur.
         """
+        minute_unit = 6
         last_chance_commit = None
 
-        while True:
-            if user.current_exo > self.nb_exos:
-                break
+        # working on first exercise
+        wating_before_next = max(random.gauss(mu=45, sigma=15), 1)
+        yield self.env.timeout(wating_before_next)
+
+        while user.current_exo <= self.nb_exos:
 
             # push autorisé si dans la limite de tag
             current_time = self.env.now
@@ -91,15 +94,14 @@ class WaterfallMoulinetteInfinite(Moulinette):
                 if user.current_exo > self.nb_exos:
                     break
 
-                yield self.env.timeout(random.randint(5, 15))
+                wating_before_next = max(random.gauss(mu=45, sigma=15), 1)
+                yield self.env.timeout(wating_before_next)
             else:
-                print(
-                    f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit."
-                )
-                last_chance_commit = min(
-                    1,
-                    commit.chance_to_pass
-                    + max(min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05),
-                )
+                print(f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit.")
+                more_chance_to_pass = max(min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05)
+                last_chance_commit = min(commit.chance_to_pass + more_chance_to_pass, 1)
+
                 self.users_commit_time[user.name].append(current_time)
-                yield self.env.timeout(random.randint(3, 15))
+                wating_before_next = max(random.gauss(mu=15, sigma=5), 1)
+
+                yield self.env.timeout(wating_before_next)
