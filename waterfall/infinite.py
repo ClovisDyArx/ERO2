@@ -37,7 +37,7 @@ class WaterfallMoulinetteInfinite(Moulinette):
 
         :param user: Utilisateur.
         """
-        minute_unit = 6
+        minute_unit = 2
         last_chance_commit = None
 
         # working on first exercise
@@ -49,8 +49,8 @@ class WaterfallMoulinetteInfinite(Moulinette):
             # push autorisé si dans la limite de tag
             current_time = self.env.now
             if len(self.users_commit_time[user.name]) >= self.tag_limit:
-                if self.users_commit_time[user.name][0] > current_time - 60:
-                    yield self.env.timeout(1)
+                if self.users_commit_time[user.name][0] > current_time - 60 * minute_unit:
+                    yield self.env.timeout(minute_unit)
                     continue
                 self.users_commit_time[user.name].pop(0)
 
@@ -95,7 +95,7 @@ class WaterfallMoulinetteInfinite(Moulinette):
                     break
 
                 wating_before_next = max(random.gauss(mu=45, sigma=15), 1)
-                yield self.env.timeout(wating_before_next)
+                yield self.env.timeout(wating_before_next * minute_unit)
             else:
                 print(f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit.")
                 more_chance_to_pass = max(min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05)
@@ -104,4 +104,4 @@ class WaterfallMoulinetteInfinite(Moulinette):
                 self.users_commit_time[user.name].append(current_time)
                 wating_before_next = max(random.gauss(mu=15, sigma=5), 1)
 
-                yield self.env.timeout(wating_before_next)
+                yield self.env.timeout(wating_before_next * minute_unit)
