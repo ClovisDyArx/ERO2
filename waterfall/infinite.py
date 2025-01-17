@@ -41,8 +41,8 @@ class WaterfallMoulinetteInfinite(Moulinette):
         last_chance_commit = None
 
         # working on first exercise
-        wating_before_next = max(random.gauss(mu=45, sigma=15), 1)
-        yield self.env.timeout(wating_before_next)
+        wating_before_next = round(max(random.gauss(mu=45, sigma=15), 1))
+        yield self.env.timeout(wating_before_next * minute_unit)
 
         while user.current_exo <= self.nb_exos:
 
@@ -94,7 +94,7 @@ class WaterfallMoulinetteInfinite(Moulinette):
                 if user.current_exo > self.nb_exos:
                     break
 
-                wating_before_next = max(random.gauss(mu=45, sigma=15), 1)
+                wating_before_next = round(max(random.gauss(mu=45, sigma=15), 1))
                 yield self.env.timeout(wating_before_next * minute_unit)
             else:
                 print(f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit.")
@@ -102,6 +102,6 @@ class WaterfallMoulinetteInfinite(Moulinette):
                 last_chance_commit = min(commit.chance_to_pass + more_chance_to_pass, 1)
 
                 self.users_commit_time[user.name].append(current_time)
-                wating_before_next = max(random.gauss(mu=15, sigma=5), 1)
+                wating_before_next = round(max(random.gauss(mu=15, sigma=5), 1))
 
                 yield self.env.timeout(wating_before_next * minute_unit)
