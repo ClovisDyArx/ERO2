@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple
 from dataclasses import dataclass, field
-from tqdm import tqdm
 
 @dataclass
 class QueueMetrics:
@@ -226,6 +225,7 @@ class QueueMetrics:
         """Generate improved plots for all metrics with better visual separation"""
         fig = plt.figure(figsize=(20, 15))
         gs = fig.add_gridspec(6, 2, hspace=0.6, wspace=0.3)
+        print(f"\n=== PLOTS: {save_filename} ===")
 
         color_test = "#2ecc71"
         color_result = "#e74c3c"
@@ -252,6 +252,7 @@ class QueueMetrics:
         ax1.grid(True, alpha=0.3)
         ax1.set_ylim(0)
         ax1.legend(loc="upper right")
+        print("- #1 Done: Queue lengths over time")
 
         # 2
         ax2 = fig.add_subplot(gs[1, 0])
@@ -260,7 +261,8 @@ class QueueMetrics:
         ax2.set_xlabel("Time")
         ax2.set_ylabel("Utilization rate")
         ax2.grid(True, alpha=0.3)
-        ax2.set_ylim(0, 1.1)
+        ax2.set_ylim(0, 1.0)
+        print("- #2 Done: Test server utilization over time")
 
         # 3
         ax3 = fig.add_subplot(gs[1, 1])
@@ -269,7 +271,8 @@ class QueueMetrics:
         ax3.set_xlabel("Time")
         ax3.set_ylabel("Utilization rate")
         ax3.grid(True, alpha=0.3)
-        ax3.set_ylim(0, 1.1)
+        ax3.set_ylim(0, 1.0)
+        print("- #3 Done: Result server utilization over time")
 
         # Sojourn times distribution
         ax4 = fig.add_subplot(gs[2, 0])
@@ -279,7 +282,7 @@ class QueueMetrics:
         total_prepa_sojourn_times = []
         total_ing_sojourn_times = []
 
-        for user_id in tqdm(self.test_queue_entry_times, desc="Computing sojourn times distribution"):
+        for user_id in self.test_queue_entry_times:
             if user_id in self.test_queue_exit_times:
                 test_time = (
                     self.test_queue_exit_times[user_id]
@@ -322,7 +325,9 @@ class QueueMetrics:
         ax4.set_ylabel("Number of users")
         ax4.grid(True, alpha=0.3)
         ax4.set_yscale("log")
+        ax4.set_ylim(1)
         ax4.legend(loc="upper right")
+        print("- #4 Done: Distribution of sojourn times")
 
         # 5
         ax5 = fig.add_subplot(gs[2, 1])
@@ -341,7 +346,9 @@ class QueueMetrics:
         ax5.set_xlabel("Total time spent in system")
         ax5.set_ylabel("Number of users")
         ax5.set_yscale("log")
+        ax5.set_ylim(1)
         ax5.grid(True, alpha=0.3)
+        print("- #5 Done: Distribution of total system time")
 
         # 6
         ax6 = fig.add_subplot(gs[3, 0])
@@ -370,6 +377,7 @@ class QueueMetrics:
         ax6.grid(True, alpha=0.3)
         ax6.set_ylim(0)
         ax6.legend(loc="upper right")
+        print(f"- #6 Done: Moving average wait times (with window_size = {window_size})")
 
         # 7
         ax7 = fig.add_subplot(gs[3, 1])
@@ -378,60 +386,51 @@ class QueueMetrics:
         attempted_jobs = []
         timestamps_after_warmup = []
 
+        # warmup
+        timestamps = np.array(self.timestamps)
+        warmup_period = timestamps[-1] * 0.1
+        window_size = max(1, len(timestamps) // 40)
 
-        if self.timestamps:
-            # warmup period (10% of simulation time)
-            warmup_period = self.timestamps[-1] * 0.1
-            window_size = max(1, len(self.timestamps) // 40)
+        mask = timestamps >= warmup_period
+        timestamps_after_warmup = timestamps[mask]
 
-            # Collect data after warmup period
-            for t in tqdm(self.timestamps, desc="Computing throughput intervals"):
-                if t >= warmup_period:  # Only consider data after warmup
-                    # Count completed jobs up to this time
-                    completed_in_interval = len([
-                        uid for uid in self.test_queue_entry_times
-                        if uid in self.result_queue_exit_times
-                        and self.result_queue_exit_times[uid] <= t
-                    ])
+        # convert dictionaries to arrays -> faster processing
+        entry_times = np.array([self.test_queue_entry_times[uid] for uid in self.test_queue_entry_times])
+        exit_times = np.array([
+            self.result_queue_exit_times.get(uid, np.inf)
+            for uid in self.test_queue_entry_times
+        ])
 
-                    # Count attempted jobs up to this time
-                    attempted_in_interval = len([
-                        uid for uid in self.test_queue_entry_times
-                        if self.test_queue_entry_times[uid] <= t
-                    ])
+        completed_jobs = np.zeros(len(timestamps_after_warmup))
+        attempted_jobs = np.zeros(len(timestamps_after_warmup))
 
-                    completed_jobs.append(completed_in_interval)
-                    attempted_jobs.append(attempted_in_interval)
-                    timestamps_after_warmup.append(t)
+        for i, t in enumerate(timestamps_after_warmup):
+            completed_jobs[i] = np.sum((exit_times <= t) & (entry_times <= t))
+            attempted_jobs[i] = np.sum(entry_times <= t)
 
-            # Calculate rates using sliding window
-            if len(completed_jobs) > window_size:
-                completed_rates = [
-                    (completed_jobs[i] - completed_jobs[i - window_size]) /
-                    (timestamps_after_warmup[i] - timestamps_after_warmup[i - window_size])
-                    for i in range(window_size, len(completed_jobs))
-                ]
+        # sliding window throughput computation
+        if len(completed_jobs) > window_size:
+            time_diffs = timestamps_after_warmup[window_size:] - timestamps_after_warmup[:-window_size]
+            completed_diffs = completed_jobs[window_size:] - completed_jobs[:-window_size]
+            attempted_diffs = attempted_jobs[window_size:] - attempted_jobs[:-window_size]
 
-                attempted_rates = [
-                    (attempted_jobs[i] - attempted_jobs[i - window_size]) /
-                    (timestamps_after_warmup[i] - timestamps_after_warmup[i - window_size])
-                    for i in range(window_size, len(attempted_jobs))
-                ]
+            completed_rates = completed_diffs / time_diffs
+            attempted_rates = attempted_diffs / time_diffs
 
-                # Plot both rates
-                ax7.plot(
-                    timestamps_after_warmup[window_size:],
-                    completed_rates,
-                    label="Completed throughput",
-                    color="#177E89"
-                )
-                ax7.plot(
-                    timestamps_after_warmup[window_size:],
-                    attempted_rates,
-                    label="Attempted throughput",
-                    color="#FFC857",
-                    linestyle="--"
-                )
+
+            ax7.plot(
+                timestamps_after_warmup[window_size:],
+                completed_rates,
+                label="Full throughput",
+                color="#177E89"
+            )
+            ax7.plot(
+                timestamps_after_warmup[window_size:],
+                attempted_rates,
+                label="'Test' throughput",
+                color="#FFC857",
+                linestyle="--"
+            )
 
         ax7.set_title("System throughput rates")
         ax7.set_xlabel("Time")
@@ -439,24 +438,8 @@ class QueueMetrics:
         ax7.grid(True, alpha=0.3)
         ax7.set_ylim(0)
         ax7.legend(loc="upper right")
+        print("- #7 Done: System throughput rates")
 
-        # Add text box with average values
-        avg_completed = np.mean(completed_rates)
-        avg_attempted = np.mean(attempted_rates)
-        effective_ratio = avg_completed / avg_attempted if avg_attempted > 0 else 0
-
-        stats_text = (
-            f"Avg completed: {avg_completed:.2f}\n"
-            f"Avg attempted: {avg_attempted:.2f}\n"
-            f"Effective ratio: {effective_ratio:.2%}"
-        )
-        ax7.text(
-            0.02, 0.98, stats_text,
-            transform=ax7.transAxes,
-            bbox=dict(facecolor='white', alpha=0.8),
-            verticalalignment='top',
-            fontsize=8
-        )
 
         # 8
         ax8 = fig.add_subplot(gs[4, 0])
@@ -470,7 +453,7 @@ class QueueMetrics:
             test_blocks = np.zeros(len(self.timestamps))
             result_blocks = np.zeros(len(self.timestamps))
 
-            for idx, t in tqdm(enumerate(self.timestamps), desc="Computing blocking probability"):
+            for idx, t in enumerate(self.timestamps):
                 # Use a slice of the timestamp range to find blocked times
                 test_blocked = sum(1 for time in range(max(0, t - block_window), t) if time in test_blocked_times_set)
                 result_blocked = sum(1 for time in range(max(0, t - block_window), t) if time in result_blocked_times_set)
@@ -488,8 +471,10 @@ class QueueMetrics:
         ax8.set_xlabel("Time")
         ax8.set_ylabel("Blocking probability")
         ax8.grid(True, alpha=0.3)
-        ax8.set_ylim(0, 1.1)
+        ax8.set_ylim(0, 1.0)
         ax8.legend(loc="upper right")
+        print("- #8 Done: Blocking probability over time")
+
 
         # 9
         ax9 = fig.add_subplot(gs[4, 1])
@@ -499,6 +484,8 @@ class QueueMetrics:
         ax9.set_ylabel("Backup length")
         ax9.grid(True, alpha=0.3)
         ax9.set_ylim(0)
+        print("- #9 Done: Result backup length over time")
+
 
         # 10
         ax10 = fig.add_subplot(gs[5, :])
@@ -519,8 +506,11 @@ class QueueMetrics:
         ax10.set_xlabel("Time")
         ax10.set_ylabel("Proportion of total load")
         ax10.grid(True, alpha=0.3)
+        ax10.set_ylim(0, 1.0)
         ax10.legend(loc="upper right")
+        print("- #10 Done: Queue load balance over time")
 
         fig.suptitle("Moulinette queue system metrics", fontsize=16, y=0.95)
+        print("\n################################################\n\n")
         plt.savefig(save_filename, dpi=300, bbox_inches="tight")
         plt.close()

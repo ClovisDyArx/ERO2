@@ -91,7 +91,7 @@ class ChannelsAndDams(WaterfallMoulinetteFiniteBackup):
 
             exo = user.current_exo
             commit = Commit(user, current_time, exo, last_chance_commit)
-            user_id = f"{user.name}_{current_time}_{exo}"
+            user_id = f"{user.promo}_{user.name}_{current_time}_{exo}"
 
             # si plus de place dans la FIFO de test, refus
             if len(self.test_queue.items) >= self.ks:

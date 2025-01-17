@@ -88,27 +88,7 @@ if __name__ == "__main__":
     }
 
     config_infinite = {
-        "1": {  # Balanced Configuration
-            "K": 2,
-            "process_time": 2,
-            "result_time": 2,
-            "tag_limit": 5,
-            "nb_exos": 10,
-        },
-        "2": {  # High Throughput Configuration
-            "K": 4,
-            "process_time": 1,
-            "result_time": 1,
-            "tag_limit": 8,
-            "nb_exos": 10,
-        },
-        "3": {  # Resource Conservation Configuration
-            "K": 2,
-            "process_time": 3,
-            "result_time": 2,
-            "tag_limit": 3,
-            "nb_exos": 10,
-        },
+
     }
 
     print("\n\n=== Waterfall Moulinette (Infinite Queues) ===\n")
@@ -117,33 +97,7 @@ if __name__ == "__main__":
         exec_simulations(users, WaterfallMoulinetteInfinite, config_infinite)
 
     config_finite = {
-        "1": {  # Balanced Queue Sizes
-            "K": 2,
-            "process_time": 3,
-            "result_time": 3,
-            "ks": 10,
-            "kf": 15,
-            "tag_limit": 5,
-            "nb_exos": 10,
-        },
-        "2": {  # Large Test Queue, Small Result Queue
-            "K": 3,
-            "process_time": 2,
-            "result_time": 4,
-            "ks": 20,
-            "kf": 10,
-            "tag_limit": 6,
-            "nb_exos": 10,
-        },
-        "3": {  # Small Test Queue, Large Result Queue
-            "K": 2,
-            "process_time": 4,
-            "result_time": 2,
-            "ks": 8,
-            "kf": 25,
-            "tag_limit": 4,
-            "nb_exos": 10,
-        },
+
     }
 
     print("\n\n=== Waterfall Moulinette (Finite Queues) ===\n")
@@ -152,43 +106,25 @@ if __name__ == "__main__":
         exec_simulations(users, WaterfallMoulinetteFinite, config_finite)
 
     config_finite_backup = {
-        "1": {  # High Capacity Configuration
-            "K": 5,
-            "process_time": 3,
-            "result_time": 3,
-            "ks": 15,
-            "kf": 25,
-            "tag_limit": 6,
-            "nb_exos": 10,
-        },
-        "2": {  # Fast Processing Configuration
-            "K": 8,
-            "process_time": 1,
-            "result_time": 2,
-            "ks": 10,
-            "kf": 20,
-            "tag_limit": 8,
-            "nb_exos": 10,
-        },
-        "3": {  # Conservative Configuration
-            "K": 3,
-            "process_time": 4,
-            "result_time": 4,
-            "ks": 12,
-            "kf": 18,
-            "tag_limit": 4,
-            "nb_exos": 10,
-        },
+
     }
     print("\n\n=== Waterfall Moulinette (Finite Queues with Backup) ===\n")
     for load_type, users in user_lists.items():
         print(f"===== {load_type} config =====")
         exec_simulations(users, WaterfallMoulinetteFiniteBackup, config_finite_backup)
 
-    # print("\n\n=== Channels & Dams Moulinette ===\n")
-    # cd = ChannelsAndDams(
-    #    K=2, process_time=2, result_time=2, tb=20, block_option=True, kf=20, ks=10
-    # )
-    # launch_test(
-    #    cd, user_list, until=None, save_filename="output/channels_and_dams_metrics.png"
-    # )
+    config_channels_dams = {
+        "balanced": {  # Balanced configuration with moderate settings
+            "K": 3,
+            "process_time": 2,
+            "result_time": 2,
+            "ks": 15,
+            "kf": 15,
+            "tb": 20,
+            "block_option": True
+        },
+    }
+    print("\n\n=== Channels & Dams Moulinette ===\n")
+    for load_type, users in user_lists.items():
+        print(f"===== {load_type} config =====")
+        exec_simulations(users, ChannelsAndDams, config_channels_dams)
