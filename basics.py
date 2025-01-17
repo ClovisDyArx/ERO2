@@ -91,10 +91,12 @@ class Moulinette:
         Collect metrics at regular intervals
         """
         while True:
-            if (
-                all(user.current_exo > self.nb_exos for user in self.users)
-                and len(self.backup_storage.items) == 0
-            ):
+            if (all(user.current_exo > self.nb_exos for user in self.users) and
+                len(self.backup_storage.items) == 0 and
+                self.test_server.count == 0 and
+                len(self.test_server.queue) == 0 and
+                self.result_server.count == 0 and
+                len(self.result_server.queue) == 0):
                 break
 
             # Test queue metrics
