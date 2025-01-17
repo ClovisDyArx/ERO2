@@ -151,7 +151,7 @@ class Moulinette:
         for user in self.users:
             self.env.process(self.handle_commit(user))
 
-        self.env.run(until=10000)
+        self.env.run(until=until)
 
         metrics = self.metrics.calculate_metrics()
         print("\nSimulation Metrics:")
