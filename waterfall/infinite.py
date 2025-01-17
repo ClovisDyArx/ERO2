@@ -45,11 +45,13 @@ class WaterfallMoulinetteInfinite(Moulinette):
         yield self.env.timeout(wating_before_next * minute_unit)
 
         while user.current_exo <= self.nb_exos:
-
             # push autorisé si dans la limite de tag
             current_time = self.env.now
             if len(self.users_commit_time[user.name]) >= self.tag_limit:
-                if self.users_commit_time[user.name][0] > current_time - 60 * minute_unit:
+                if (
+                    self.users_commit_time[user.name][0]
+                    > current_time - 60 * minute_unit
+                ):
                     yield self.env.timeout(minute_unit)
                     continue
                 self.users_commit_time[user.name].pop(0)
@@ -97,8 +99,12 @@ class WaterfallMoulinetteInfinite(Moulinette):
                 wating_before_next = round(max(random.gauss(mu=45, sigma=15), 1))
                 yield self.env.timeout(wating_before_next * minute_unit)
             else:
-                print(f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit.")
-                more_chance_to_pass = max(min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05)
+                print(
+                    f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit."
+                )
+                more_chance_to_pass = max(
+                    min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05
+                )
                 last_chance_commit = min(commit.chance_to_pass + more_chance_to_pass, 1)
 
                 self.users_commit_time[user.name].append(current_time)

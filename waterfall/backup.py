@@ -42,11 +42,13 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
         )
 
     def _process_backup_result(self, commit: Commit, user_id: str):
+        while len(self.result_queue.items) >= self.kf:
+            yield self.env.timeout(1)
+
         self.metrics.record_result_queue_entry(user_id, self.env.now)
 
         print(f"{commit} : enters the result queue. [BACKUP]")
         yield self.result_queue.put(commit.user)
-
         with self.result_server.request() as request:
             yield request
             print(f"{commit} : starts result processing. [BACKUP]")
@@ -78,7 +80,6 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
                 commit, user_id = self.backup_storage.get().value
                 self.env.process(self._process_backup_result(commit, user_id))
 
-
             yield self.env.timeout(1)
 
     def handle_commit(self, user: Utilisateur):
@@ -91,11 +92,13 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
         last_chance_commit = None
 
         while user.current_exo <= self.nb_exos:
-
             # push autorisé si dans la limite de tag
             current_time = self.env.now
             if len(self.users_commit_time[user.name]) >= self.tag_limit:
-                if self.users_commit_time[user.name][0] > current_time - 60 * minute_unit:
+                if (
+                    self.users_commit_time[user.name][0]
+                    > current_time - 60 * minute_unit
+                ):
                     yield self.env.timeout(minute_unit)
                     continue
                 self.users_commit_time[user.name].pop(0)
@@ -166,8 +169,12 @@ class WaterfallMoulinetteFiniteBackup(WaterfallMoulinetteFinite):
                 wating_before_next = round(max(random.gauss(mu=45, sigma=15), 1))
                 yield self.env.timeout(wating_before_next * minute_unit)
             else:
-                print(f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit.")
-                more_chance_to_pass = max(min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05)
+                print(
+                    f"{commit} : commit failed for exo {exo}... Increasing chance to pass for next commit."
+                )
+                more_chance_to_pass = max(
+                    min(random.gauss(mu=0.1, sigma=0.015), 0.2), 0.05
+                )
                 last_chance_commit = min(commit.chance_to_pass + more_chance_to_pass, 1)
 
                 self.users_commit_time[user.name].append(current_time)
